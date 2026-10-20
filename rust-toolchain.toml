@@ -1,0 +1,19 @@
+[toolchain]
+# The no_std bridge library builds on STABLE, unlike the kernel at the repository
+# root (which pins `nightly-2026-05-01` for its `aarch64-unknown-none` family).
+#
+# Without this file rustup walks up to the root pin and hands anything built under
+# `packages/kei/` a kernel toolchain it does not want — the same mismatch that
+# forced the library CI job to set `RUSTUP_TOOLCHAIN: stable` by hand.
+#
+# Declaring it here is what makes the crate self-contained: a consumer, or this
+# package extracted into its own repository, gets the right toolchain from the
+# directory alone, with no environment variable and no kernel checkout.
+channel = "stable"
+components = ["rustfmt", "clippy"]
+targets = [
+    # ARM Cortex-M — the primary embassy target.
+    "thumbv7em-none-eabi",
+    # RISC-V — the secondary target.
+    "riscv32imc-unknown-none-elf",
+]

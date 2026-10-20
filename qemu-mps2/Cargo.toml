@@ -1,0 +1,35 @@
+[package]
+edition = "2021"
+name = "kei-qemu-mps2"
+version = "0.1.0"
+publish = false
+# Member of the library's own workspace, rooted at the parent directory.
+# This crate lives INSIDE the library workspace so that cloning the repo
+# yields a complete, loadable workspace — the demo used to sit outside it
+# used to sit outside it and referenced the library through a sibling path, which
+# made the package impossible to extract on its own.
+workspace = ".."
+
+[dependencies]
+
+# The kei-wire bridge library — the parent directory of this crate.
+kei-wire = { path = "..", default-features = false, features = [
+    "wire",
+    "manifest",
+    "hal",
+] }
+
+# Heap allocator for `alloc` (kei's wire protocol uses Vec<u8> for frames).
+
+linked_list_allocator = "0.10"
+[target.'cfg(target_os = "none")'.dependencies]
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7"
+panic-halt = "0.2"
+critical-section = "1"
+
+[profile.release]
+debug = 2
+opt-level = 3
+lto = false
+panic = "abort"
