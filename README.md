@@ -1,20 +1,20 @@
-# kei-wire
+# hare
 
 **A `#![no_std]` embedded bridge library for the Celestia IoT ecosystem.**
 
-`kei-wire` is the shared contract layer between **embassy-based sensor nodes** (bare-metal MCUs) and the **gateway broker** — today `evernight` running on Linux. It provides:
+`hare` is the shared contract layer between **embassy-based sensor nodes** (bare-metal MCUs) and the **gateway broker** — today `evernight` running on Linux. It provides:
 
-- **Manifest schema** (`kei_wire::manifest`) — hardware descriptions: register maps, alarm rules, station configs, scale transforms. The same schema both sides deserialize.
-- **Wire protocol** (`kei_wire::wire`) — a compact binary framing protocol for UART/USB-CDC/SPI between sensor nodes and the gateway.
-- **Protocol codecs** (`kei_wire::codec`) — pure encode/decode functions for Modbus, MC Protocol, EtherNet/IP-CIP, CAN — no OS dependency, usable on bare metal.
-- **HAL traits** (`kei_wire::hal`) — `Transport` and `SensorDevice` traits that embassy nodes implement against their hardware.
+- **Manifest schema** (`hare::manifest`) — hardware descriptions: register maps, alarm rules, station configs, scale transforms. The same schema both sides deserialize.
+- **Wire protocol** (`hare::wire`) — a compact binary framing protocol for UART/USB-CDC/SPI between sensor nodes and the gateway.
+- **Protocol codecs** (`hare::codec`) — pure encode/decode functions for Modbus, MC Protocol, EtherNet/IP-CIP, CAN — no OS dependency, usable on bare metal.
+- **HAL traits** (`hare::hal`) — `Transport` and `SensorDevice` traits that embassy nodes implement against their hardware.
 
 ## Quick start (embassy sensor node)
 
 ```rust
 // On an STM32 / nRF52 / RP2040 running embassy:
-use kei_wire::wire::{Node, Frame, MsgType};
-use kei_wire::manifest::SensorUnit;
+use hare::wire::{Node, Frame, MsgType};
+use hare::manifest::SensorUnit;
 
 let mut node = Node::new(transport);  // your embassy UART
 node.register_station(&station_manifest);
@@ -31,8 +31,8 @@ loop {
 
 ```rust
 // On the evernight gateway (host Linux / kei-kernel):
-use kei_wire::wire::{Gateway, Frame};
-use kei_wire::manifest::HardwareManifest;
+use hare::wire::{Gateway, Frame};
+use hare::manifest::HardwareManifest;
 
 let manifest = HardwareManifest::from_toml_str(&toml_str)?;
 let mut gw = Gateway::new(transport);  // serial port
@@ -81,7 +81,7 @@ SySL-1.0 (Synthetic Source License).
 ## Provenance
 
 Extracted verbatim from the [`kei`](https://github.com/celestia-island/kei) kernel
-repo (`packages/kei/`) on 2026-10-20 by user ruling, so the product line
-(entelecheia / evernight) consumes the bridge without depending on the frozen
-kernel repo. The kernel keeps its freeze; this repo carries the bridge crates
+repo (`packages/kei/`) on 2026-10-20 by user ruling, renamed `kei-wire` at
+creation and to `hare` (Omagari Hare, 小鉤晴) on 2026-10-21 by user ruling.
+The kernel keeps its freeze; this repo carries the bridge crates
 (wire / manifest / codec / hal) forward.

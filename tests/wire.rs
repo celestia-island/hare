@@ -1,8 +1,8 @@
 //! Wire protocol integration tests — verify encode → decode round-trip.
 
-use kei_wire::hal::{DeviceError, SensorDevice, Transport};
-use kei_wire::manifest::{RawValue, RegisterMode, SensorUnit};
-use kei_wire::wire::{
+use hare::hal::{DeviceError, SensorDevice, Transport};
+use hare::manifest::{RawValue, RegisterMode, SensorUnit};
+use hare::wire::{
     decode::FrameDecoder, frame::decode_frame, Alarm, AlarmLevel, Frame, Gateway, Incoming,
     MsgType, Nack, Node, ReadRegister, Request, Telemetry,
 };
@@ -74,7 +74,7 @@ fn crc_corruption_detected() {
     let result = decode_frame(&wire_bytes);
     assert!(result.is_err(), "corrupted frame should fail CRC");
     match result {
-        Err(kei_wire::wire::frame::DecodeError::CrcMismatch { .. }) => {}
+        Err(hare::wire::frame::DecodeError::CrcMismatch { .. }) => {}
         other => panic!("expected CrcMismatch, got {:?}", other),
     }
 }
@@ -88,7 +88,7 @@ fn bad_magic_rejected() {
     let result = decode_frame(&wire_bytes);
     assert!(matches!(
         result,
-        Err(kei_wire::wire::frame::DecodeError::BadMagic)
+        Err(hare::wire::frame::DecodeError::BadMagic)
     ));
 }
 
@@ -101,7 +101,7 @@ fn truncated_frame_rejected() {
     let result = decode_frame(&wire_bytes[..3]);
     assert!(matches!(
         result,
-        Err(kei_wire::wire::frame::DecodeError::TooShort)
+        Err(hare::wire::frame::DecodeError::TooShort)
     ));
 }
 
@@ -118,7 +118,7 @@ fn streaming_decoder_byte_by_byte() {
                 result = Some(f);
                 break;
             }
-            Err(kei_wire::wire::decode::DecodeStreamError::NeedMore) => continue,
+            Err(hare::wire::decode::DecodeStreamError::NeedMore) => continue,
             Err(e) => panic!("unexpected decoder error: {:?}", e),
         }
     }
@@ -144,7 +144,7 @@ fn streaming_decoder_resync_after_garbage() {
     for &byte in &wire_bytes[..wire_bytes.len() - 1] {
         assert_eq!(
             dec.push(byte),
-            Err(kei_wire::wire::decode::DecodeStreamError::NeedMore)
+            Err(hare::wire::decode::DecodeStreamError::NeedMore)
         );
     }
     assert!(dec.push(wire_bytes[wire_bytes.len() - 1]).is_ok());
@@ -188,11 +188,11 @@ impl PipeTransport {
 }
 
 impl Transport for PipeTransport {
-    fn send(&mut self, data: &[u8]) -> Result<usize, kei_wire::hal::TransportError> {
+    fn send(&mut self, data: &[u8]) -> Result<usize, hare::hal::TransportError> {
         self.tx.borrow_mut().buf.extend_from_slice(data);
         Ok(data.len())
     }
-    fn recv(&mut self, buf: &mut [u8]) -> Result<usize, kei_wire::hal::TransportError> {
+    fn recv(&mut self, buf: &mut [u8]) -> Result<usize, hare::hal::TransportError> {
         let mut rx = self.rx.borrow_mut();
         if rx.buf.is_empty() {
             return Ok(0); // nothing to read yet
@@ -342,7 +342,7 @@ fn node_ignores_frames_for_other_stations() {
 
 // ── TelemetryBatch (gateway → service, B2) ───────────────────────────────
 
-use kei_wire::wire::{
+use hare::wire::{
     decode_frame_with_limit, encode_frame_with_limit, BatchReading, Quality, RegisterKind,
     TelemetryBatch, MAX_BATCH_PAYLOAD_LEN,
 };
@@ -436,7 +436,7 @@ fn default_decode_limit_still_rejects_batch_frames() {
     let frame = Frame::telemetry_batch(&batch).unwrap();
     let payload_len = frame.payload.len();
     assert!(
-        payload_len > kei_wire::wire::MAX_PAYLOAD_LEN && payload_len <= MAX_BATCH_PAYLOAD_LEN,
+        payload_len > hare::wire::MAX_PAYLOAD_LEN && payload_len <= MAX_BATCH_PAYLOAD_LEN,
         "test batch must sit between the two limits, got {payload_len}"
     );
 
@@ -450,7 +450,7 @@ fn streaming_decoder_with_raised_limit_accepts_batch() {
     let batch = sample_batch(40); // >1 KiB, <4 KiB
     let frame = Frame::telemetry_batch(&batch).unwrap();
     assert!(
-        frame.payload.len() > kei_wire::wire::MAX_PAYLOAD_LEN,
+        frame.payload.len() > hare::wire::MAX_PAYLOAD_LEN,
         "test batch must exceed the default limit, got {}",
         frame.payload.len()
     );
@@ -464,7 +464,7 @@ fn streaming_decoder_with_raised_limit_accepts_batch() {
                 got = Some(f);
                 break;
             }
-            Err(kei_wire::wire::decode::DecodeStreamError::NeedMore) => continue,
+            Err(hare::wire::decode::DecodeStreamError::NeedMore) => continue,
             Err(e) => panic!("unexpected decode error: {e:?}"),
         }
     }

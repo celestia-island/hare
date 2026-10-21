@@ -23,9 +23,9 @@ use core::panic::PanicInfo;
 
 use cortex_m_rt::entry;
 
-use kei_wire::hal::{DeviceError, SensorDevice, Transport};
-use kei_wire::manifest::{RawValue, RegisterMode, ScaleTransform, SensorUnit};
-use kei_wire::wire::{decode_frame, encode_frame, Frame, MsgType, Node, Request};
+use hare::hal::{DeviceError, SensorDevice, Transport};
+use hare::manifest::{RawValue, RegisterMode, ScaleTransform, SensorUnit};
+use hare::wire::{decode_frame, encode_frame, Frame, MsgType, Node, Request};
 
 // ── Heap allocator (kei's wire protocol uses Vec<u8>) ────────────────────────-
 
@@ -114,7 +114,7 @@ fn main() -> ! {
 
     // Announce boot.
     uart::write_str("[node] boot complete, station_id=1\r\n");
-    let _ = node.send_status(kei_wire::wire::NodeState::Boot, "kei-qemu-demo v0.1", 0);
+    let _ = node.send_status(hare::wire::NodeState::Boot, "kei-qemu-demo v0.1", 0);
     delay_ms(100);
 
     // ── Benchmark: measure kei operations in CMSDK timer ticks (25 MHz) ────────
@@ -161,7 +161,7 @@ fn main() -> ! {
     ];
     let t0 = timer::now();
     for _ in 0..iterations {
-        let c = kei_wire::wire::frame::crc16_modbus(core::hint::black_box(&crc_input));
+        let c = hare::wire::frame::crc16_modbus(core::hint::black_box(&crc_input));
         core::hint::black_box(c);
     }
     let t1 = timer::now();
