@@ -18,7 +18,7 @@ members = ["qemu-mps2"]
 
 [features]
 # Default: everything that works on no_std + alloc
-default = ["wire", "manifest", "codec", "hal"]
+default = ["wire", "manifest", "codec", "hal", "ansi"]
 
 # The celestia wire protocol (embassy ↔ gateway framing).
 # Uses postcard for payload serialization + inline CRC16.
@@ -37,6 +37,9 @@ hal = []
 
 # std-only helpers (TOML/JSON manifest adapters, etc.) — off by default.
 std = ["serde?/std", "postcard?/use-std"]
+
+# ANSI/VT escape sequence parser (state machine, no_std).
+ansi = []
 
 [dependencies]
 

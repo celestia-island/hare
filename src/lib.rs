@@ -28,5 +28,8 @@ pub mod wire;
 #[cfg(feature = "hal")]
 pub mod hal;
 
+#[cfg(feature = "ansi")]
+pub mod ansi;
+
 /// Crate-wide version string.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
