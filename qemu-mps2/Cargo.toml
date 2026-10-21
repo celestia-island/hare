@@ -12,8 +12,8 @@ workspace = ".."
 
 [dependencies]
 
-# The kei-wire bridge library — the parent directory of this crate.
-kei-wire = { path = "..", default-features = false, features = [
+# The hare bridge library — the parent directory of this crate.
+hare = { path = "..", default-features = false, features = [
     "wire",
     "manifest",
     "hal",

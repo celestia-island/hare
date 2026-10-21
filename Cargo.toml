@@ -1,15 +1,15 @@
 [package]
-name = "kei-wire"
+name = "hare"
 version = "0.1.3"
 edition = "2021"
 authors = ["langyo <langyo.china@gmail.com>"]
 license-file = "LICENSE"
 description = """\
-kei-wire — no_std embedded bridge library (extracted from the kei kernel repo 2026-10-20): manifest schema, wire protocol, \
+hare — no_std embedded bridge library (extracted from the kei kernel repo 2026-10-20): manifest schema, wire protocol, \
 and protocol type identifiers shared between embassy-based sensor nodes \
 and the evernight gateway broker.\
 """
-repository = "https://github.com/celestia-island/kei-wire"
+repository = "https://github.com/celestia-island/hare"
 keywords = ["no-std", "embedded", "embassy", "iot", "industrial"]
 categories = ["embedded", "no-std", "network-programming"]
 

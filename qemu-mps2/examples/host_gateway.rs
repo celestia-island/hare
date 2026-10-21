@@ -23,8 +23,8 @@ use std::os::fd::AsRawFd;
 #[cfg(unix)]
 use std::os::unix::io::FromRawFd;
 
-use kei_wire::hal::{Transport, TransportError};
-use kei_wire::wire::{Gateway, Incoming};
+use hare::hal::{Transport, TransportError};
+use hare::wire::{Gateway, Incoming};
 
 /// A Transport backed by a raw file descriptor (the QEMU serial pipe).
 struct FdTransport {

@@ -7,8 +7,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use kei_wire::hal::{DeviceError, SensorDevice, Transport};
-use kei_wire::manifest::{RawValue, RegisterMode, SensorUnit};
+use hare::hal::{DeviceError, SensorDevice, Transport};
+use hare::manifest::{RawValue, RegisterMode, SensorUnit};
 
 // ── In-memory bidirectional pipe (same as the test helper) ──────────────────
 
@@ -36,11 +36,11 @@ impl PipeTransport {
 }
 
 impl Transport for PipeTransport {
-    fn send(&mut self, data: &[u8]) -> Result<usize, kei_wire::hal::TransportError> {
+    fn send(&mut self, data: &[u8]) -> Result<usize, hare::hal::TransportError> {
         self.tx.borrow_mut().buf.extend_from_slice(data);
         Ok(data.len())
     }
-    fn recv(&mut self, buf: &mut [u8]) -> Result<usize, kei_wire::hal::TransportError> {
+    fn recv(&mut self, buf: &mut [u8]) -> Result<usize, hare::hal::TransportError> {
         let mut rx = self.rx.borrow_mut();
         if rx.buf.is_empty() {
             return Ok(0);
@@ -98,8 +98,8 @@ fn main() {
     println!("kei wire protocol demo (host, in-memory pipe)\n");
 
     let (gw_transport, node_transport) = PipeTransport::pair();
-    let mut gateway = kei_wire::wire::Gateway::new(gw_transport);
-    let mut node = kei_wire::wire::Node::new(node_transport, 42); // station 42
+    let mut gateway = hare::wire::Gateway::new(gw_transport);
+    let mut node = hare::wire::Node::new(node_transport, 42); // station 42
     let mut sensor = TemperatureSensor { temp: 23.5 };
 
     // 1. Gateway discovers nodes on the bus.
@@ -108,12 +108,12 @@ fn main() {
 
     // Node handles the discover probe.
     let req = node.poll(&mut sensor).expect("node poll");
-    if let kei_wire::wire::Request::Discover(_) = req {
+    if let hare::wire::Request::Discover(_) = req {
         println!("[node 42] responding to discover");
         node.send_discover_response("temp-sensor-01", 2).unwrap();
     }
     let incoming = gateway.recv().unwrap();
-    if let kei_wire::wire::Incoming::DiscoverResponse(d) = incoming {
+    if let hare::wire::Incoming::DiscoverResponse(d) = incoming {
         println!(
             "[gateway] found station {} ({}, {} registers)",
             d.station_id, d.name, d.register_count
@@ -126,7 +126,7 @@ fn main() {
 
     // Node handles the read request and sends telemetry back.
     let req = node.poll(&mut sensor).expect("node poll");
-    if let kei_wire::wire::Request::ReadRegister(r) = req {
+    if let hare::wire::Request::ReadRegister(r) = req {
         println!("[node 42] read request for register 0x{:04X}", r.register);
         let raw = sensor.read_register(r.register).unwrap();
         let value = raw.as_f64() as f32;
@@ -136,7 +136,7 @@ fn main() {
 
     // Gateway receives the telemetry.
     let incoming = gateway.recv().unwrap();
-    if let kei_wire::wire::Incoming::Telemetry(t) = incoming {
+    if let hare::wire::Incoming::Telemetry(t) = incoming {
         println!(
             "[gateway] telemetry: station={}, register=0x{:04X}, value={:.1}°C",
             t.station_id, t.register, t.value
@@ -153,14 +153,14 @@ fn main() {
     let req = node
         .poll(&mut sensor)
         .expect("node poll (after write dispatch)");
-    if let kei_wire::wire::Request::ReadRegister(r) = req {
+    if let hare::wire::Request::ReadRegister(r) = req {
         let raw = sensor.read_register(r.register).unwrap();
         let value = raw.as_f64() as f32;
         node.send_telemetry(r.register, value, sensor.unit_for(r.register), 0)
             .unwrap();
     }
     let incoming = gateway.recv().unwrap();
-    if let kei_wire::wire::Incoming::Telemetry(t) = incoming {
+    if let hare::wire::Incoming::Telemetry(t) = incoming {
         println!(
             "[gateway] telemetry after set-point: {:.1}°C (expected 30.0)",
             t.value

@@ -7,9 +7,9 @@
 //!
 //! ## What it does
 //!
-//! - Implements `kei_wire::hal::Transport` over `embassy_uart::UartRx`/`UartTx`
-//! - Implements `kei_wire::hal::SensorDevice` reading from an ADC (temperature)
-//! - Runs the `kei_wire::wire::Node` main loop: polls for gateway requests,
+//! - Implements `hare::hal::Transport` over `embassy_uart::UartRx`/`UartTx`
+//! - Implements `hare::hal::SensorDevice` reading from an ADC (temperature)
+//! - Runs the `hare::wire::Node` main loop: polls for gateway requests,
 //!   reads the sensor, sends telemetry back
 //!
 //! ## Wiring
@@ -62,7 +62,7 @@
 // Register 0x0100 = current temperature (read-only).
 // Register 0x0200 = alarm threshold (read-write).
 //
-// Uncomment the `impl SensorDevice` block and the `use kei_wire::hal::*` imports
+// Uncomment the `impl SensorDevice` block and the `use hare::hal::*` imports
 // in your real embassy project.
 /*
 pub struct AdcTempSensor {
@@ -82,26 +82,26 @@ impl AdcTempSensor {
     }
 }
 
-impl kei_wire::hal::SensorDevice for AdcTempSensor {
-    fn read_register(&mut self, register: u16) -> Result<kei_wire::manifest::RawValue, kei_wire::hal::DeviceError> {
+impl hare::hal::SensorDevice for AdcTempSensor {
+    fn read_register(&mut self, register: u16) -> Result<hare::manifest::RawValue, hare::hal::DeviceError> {
         match register {
-            0x0100 => Ok(kei_wire::manifest::RawValue::F32(self.raw_to_celsius())),
-            0x0200 => Ok(kei_wire::manifest::RawValue::F32(self.alarm_threshold)),
-            _ => Err(kei_wire::hal::DeviceError::InvalidRegister),
+            0x0100 => Ok(hare::manifest::RawValue::F32(self.raw_to_celsius())),
+            0x0200 => Ok(hare::manifest::RawValue::F32(self.alarm_threshold)),
+            _ => Err(hare::hal::DeviceError::InvalidRegister),
         }
     }
-    fn write_register(&mut self, register: u16, value: f32) -> Result<(), kei_wire::hal::DeviceError> {
+    fn write_register(&mut self, register: u16, value: f32) -> Result<(), hare::hal::DeviceError> {
         match register {
             0x0200 => { self.alarm_threshold = value; Ok(()) }
-            _ => Err(kei_wire::hal::DeviceError::PermissionDenied),
+            _ => Err(hare::hal::DeviceError::PermissionDenied),
         }
     }
     fn register_count(&self) -> u16 { 2 }
-    fn unit_for(&self, reg: u16) -> kei_wire::manifest::SensorUnit {
-        if reg == 0x0100 { kei_wire::manifest::SensorUnit::Celsius } else { kei_wire::manifest::SensorUnit::Dimensionless }
+    fn unit_for(&self, reg: u16) -> hare::manifest::SensorUnit {
+        if reg == 0x0100 { hare::manifest::SensorUnit::Celsius } else { hare::manifest::SensorUnit::Dimensionless }
     }
-    fn mode_for(&self, reg: u16) -> kei_wire::manifest::RegisterMode {
-        if reg == 0x0200 { kei_wire::manifest::RegisterMode::ReadWrite } else { kei_wire::manifest::RegisterMode::ReadOnly }
+    fn mode_for(&self, reg: u16) -> hare::manifest::RegisterMode {
+        if reg == 0x0200 { hare::manifest::RegisterMode::ReadWrite } else { hare::manifest::RegisterMode::ReadOnly }
     }
 }
 */
@@ -129,7 +129,7 @@ impl kei_wire::hal::SensorDevice for AdcTempSensor {
 //     let mut sensor = AdcTempSensor { adc_raw: 0, alarm_threshold: 50.0 };
 //
 //     // Announce boot.
-//     node.send_status(kei_wire::wire::NodeState::Boot, "firmware v0.1", 0).ok();
+//     node.send_status(hare::wire::NodeState::Boot, "firmware v0.1", 0).ok();
 //
 //     // Main loop.
 //     loop {
@@ -139,7 +139,7 @@ impl kei_wire::hal::SensorDevice for AdcTempSensor {
 //         // Check for alarm.
 //         let temp = sensor.raw_to_celsius();
 //         if temp > sensor.alarm_threshold {
-//             node.send_alarm(0x0100, kei_wire::manifest::AlarmLevel::High,
+//             node.send_alarm(0x0100, hare::manifest::AlarmLevel::High,
 //                 "temperature exceeded threshold", 0).ok();
 //         }
 //
@@ -160,7 +160,7 @@ impl kei_wire::hal::SensorDevice for AdcTempSensor {
 //         }
 //
 //         // Heartbeat every N cycles (optional).
-//         // node.send_status(kei_wire::wire::NodeState::Heartbeat, "", 0).ok();
+//         // node.send_status(hare::wire::NodeState::Heartbeat, "", 0).ok();
 //     }
 // }
 

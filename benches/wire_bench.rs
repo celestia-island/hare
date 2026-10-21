@@ -11,9 +11,9 @@
 //! - Full Node → Gateway round-trip (send_telemetry → recv)
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use kei_wire::hal::{Transport, TransportError};
-use kei_wire::manifest::SensorUnit;
-use kei_wire::wire::{decode::FrameDecoder, frame::decode_frame, Frame, Gateway, Node};
+use hare::hal::{Transport, TransportError};
+use hare::manifest::SensorUnit;
+use hare::wire::{decode::FrameDecoder, frame::decode_frame, Frame, Gateway, Node};
 
 // ── In-memory transport (zero-overhead, same as test harness) ────────────────
 
@@ -85,7 +85,7 @@ fn bench_crc16(c: &mut Criterion) {
     let data: Vec<u8> = (0..64u8).collect();
     c.bench_function("crc16_64bytes", |b| {
         b.iter(|| {
-            black_box(kei_wire::wire::frame::crc16_modbus(black_box(&data)));
+            black_box(hare::wire::frame::crc16_modbus(black_box(&data)));
         });
     });
 
@@ -93,7 +93,7 @@ fn bench_crc16(c: &mut Criterion) {
     let data256: Vec<u8> = (0..255u8).chain(core::iter::once(0)).collect();
     c.bench_function("crc16_256bytes", |b| {
         b.iter(|| {
-            black_box(kei_wire::wire::frame::crc16_modbus(black_box(&data256)));
+            black_box(hare::wire::frame::crc16_modbus(black_box(&data256)));
         });
     });
 }
@@ -117,7 +117,7 @@ fn bench_decoder_streaming(c: &mut Criterion) {
 }
 
 fn bench_scale_transform(c: &mut Criterion) {
-    use kei_wire::manifest::{ScaleTransform, SensorUnit};
+    use hare::manifest::{ScaleTransform, SensorUnit};
     let mut group = c.benchmark_group("scale_transform");
     group.throughput(Throughput::Elements(1));
 
