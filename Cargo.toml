@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["langyo <langyo.china@gmail.com>"]
 license-file = "LICENSE"
-description = "A #![no_std] embedded bridge library for the Celestia IoT ecosystem: hardware manifest schema, wire protocol, protocol type identifiers, and HAL traits shared by embassy sensor nodes and the evernight gateway."
+description = "A #![no_std] embedded bridge library for the Celestia IoT ecosystem: hardware manifest schema, wire protocol, protocol type identifiers, HAL traits, and an ANSI/VT parser shared by embassy sensor nodes and the evernight gateway."
 readme = "README.md"
 repository = "https://github.com/celestia-island/hare"
 keywords = ["no-std", "embedded", "embassy", "iot", "industrial"]
@@ -32,7 +32,7 @@ codec = ["dep:serde"]
 # HAL traits (Transport, SensorDevice — embassy-implementable).
 hal = []
 
-# std-only helpers (TOML/JSON manifest adapters, etc.) — off by default.
+# Forward `std` to the optional serde/postcard deps (host-side builds) — off by default.
 std = ["serde?/std", "postcard?/use-std"]
 
 # ANSI/VT escape sequence parser (state machine, no_std).

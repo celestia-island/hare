@@ -1,7 +1,7 @@
 //! Host-side demo: simulates a sensor node and gateway talking over an
 //! in-memory pipe. Runnable on any host with `cargo run --example host_demo`.
 //!
-//! This demonstrates the kei wire protocol API without any real hardware.
+//! This demonstrates the hare wire protocol API without any real hardware.
 //! For the embassy (bare-metal MCU) version, see `examples/embassy_node.rs`.
 
 use std::cell::RefCell;
@@ -95,7 +95,7 @@ impl SensorDevice for TemperatureSensor {
 // ── Main demo: gateway reads temperature from node ─────────────────────────-
 
 fn main() {
-    println!("kei wire protocol demo (host, in-memory pipe)\n");
+    println!("hare wire protocol demo (host, in-memory pipe)\n");
 
     let (gw_transport, node_transport) = PipeTransport::pair();
     let mut gateway = hare::wire::Gateway::new(gw_transport);

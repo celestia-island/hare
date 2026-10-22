@@ -1,6 +1,6 @@
-//! kei QEMU demo firmware — mps2-an386 (Cortex-M4).
+//! hare QEMU demo firmware — mps2-an386 (Cortex-M4).
 //!
-//! A minimal sensor node that uses the kei wire protocol to report
+//! A minimal sensor node that uses the hare wire protocol to report
 //! temperature telemetry over QEMU's UART0. The "temperature" is a
 //! simulated counter (no real ADC on MPS2).
 //!
@@ -27,7 +27,7 @@ use hare::hal::{DeviceError, SensorDevice, Transport};
 use hare::manifest::{RawValue, RegisterMode, ScaleTransform, SensorUnit};
 use hare::wire::{decode_frame, encode_frame, Frame, MsgType, Node, Request};
 
-// ── Heap allocator (kei's wire protocol uses Vec<u8>) ────────────────────────-
+// ── Heap allocator (hare's wire protocol uses Vec<u8>) ───────────────────────-
 
 #[global_allocator]
 static ALLOCATOR: linked_list_allocator::LockedHeap = linked_list_allocator::LockedHeap::empty();
@@ -105,7 +105,7 @@ fn main() -> ! {
 
     // Initialize UART.
     uart::init();
-    uart::write_str("\r\n=== kei QEMU demo firmware (mps2-an386) ===\r\n");
+    uart::write_str("\r\n=== hare QEMU demo firmware (mps2-an386) ===\r\n");
 
     // Create the transport + node.
     let t = transport::UartTransport::new();
@@ -114,10 +114,10 @@ fn main() -> ! {
 
     // Announce boot.
     uart::write_str("[node] boot complete, station_id=1\r\n");
-    let _ = node.send_status(hare::wire::NodeState::Boot, "kei-qemu-demo v0.1", 0);
+    let _ = node.send_status(hare::wire::NodeState::Boot, "kei-qemu-mps2 v0.1", 0);
     delay_ms(100);
 
-    // ── Benchmark: measure kei operations in CMSDK timer ticks (25 MHz) ────────
+    // ── Benchmark: measure hare operations in CMSDK timer ticks (25 MHz) ────────
     timer::init();
     uart::write_str("\r\n=== BENCHMARK (CMSDK TIMER @ 25MHz, 1 tick = 40ns) ===\r\n");
 
@@ -264,7 +264,7 @@ fn main() -> ! {
                     uart::write_str("[node] sent telemetry\r\n");
                 }
                 Ok(Request::Discover(_)) => {
-                    let _ = node.send_discover_response("kei-qemu-temp-sensor", 1);
+                    let _ = node.send_discover_response("hare-qemu-temp-sensor", 1);
                     uart::write_str("[node] sent discover response\r\n");
                 }
                 Ok(_) => {}

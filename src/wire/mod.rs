@@ -17,19 +17,20 @@
 //!
 //! ## Usage
 //!
-//! Embassy node side:
+//! Embassy node side (`Transport::send` is synchronous; the node's high-level
+//! API is [`Node`]):
 //! ```ignore
-//! # use kei::wire::*;
-//! let frame = Frame::telemetry(1, 0x100, 23.5, kei::manifest::SensorUnit::Celsius);
+//! # use hare::wire::*;
+//! let frame = Frame::telemetry(1, 0x100, 23.5, hare::manifest::SensorUnit::Celsius);
 //! let bytes: Vec<u8> = frame.encode();
-//! transport.send(&bytes).await;
+//! transport.send(&bytes)?;
 //! ```
 //!
-//! Gateway side:
+//! Gateway side (`decode_frame` returns a parsed [`Frame`]):
 //! ```ignore
-//! # use kei::wire::*;
-//! let bytes = transport.recv().await;
-//! let frame = Frame::decode(&bytes)?;
+//! # use hare::wire::*;
+//! let n = transport.recv(&mut buf)?;
+//! let frame = decode_frame(&buf[..n])?;
 //! ```
 
 pub mod decode;

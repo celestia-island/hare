@@ -30,9 +30,9 @@
 Hare es la capa de contrato compartida entre **los nodos de sensores basados en embassy**
 (MCU bare-metal) y **el broker de la pasarela** — hoy
 [`evernight`](https://github.com/celestia-island/evernight), ejecutándose sobre Linux. Ambos
-lados deserializan el mismo manifiesto de hardware y usan el mismo formato de trama sobre el
-cable, de modo que el firmware de un sensor y el servicio de la pasarela pueden
-desarrollarse de forma independiente y aun así encontrarse en el punto medio.
+lados deserializan el mismo manifiesto de hardware y hablan el mismo entramado de cable, así
+que el firmware de un sensor y el servicio de la pasarela pueden construirse de forma
+independiente y aun así encontrarse en el punto medio.
 
 Es `#![no_std]` + `alloc`: sin std, sin tokio, sin llamadas al SO y sin un runtime asíncrono
 propio — el nodo embassy proporciona el transporte y hare proporciona el protocolo.
@@ -44,7 +44,7 @@ propio — el nodo embassy proporciona el transporte y hare proporciona el proto
   mismo esquema que ambos lados deserializan.
 - **Protocolo de cable** (`hare::wire`) — un protocolo de entramado binario compacto para
   UART/USB-CDC/SPI entre los nodos de sensores y la pasarela: valor mágico `0xCE`, longitud
-  `u16`, carga útil `postcard` y tráiler CRC16-Modbus.
+  `u16`, tipo de mensaje `u8`, carga útil `postcard`, tráiler CRC16-Modbus.
 - **Identificadores de tipo de protocolo** (`hare::codec`) — `ProtocolKind` y un contenedor
   opaco `ProtocolFrame` para Modbus, MC Protocol, EtherNet/IP-CIP, S7comm y CAN. La lógica de
   codificación y decodificación pertenece a evernight, no a hare.
@@ -74,83 +74,115 @@ valores por defecto son el conjunto no_std completo (`wire`, `manifest`, `codec`
 | `codec` | ✅ | Identificadores de tipo de protocolo y el contenedor opaco `ProtocolFrame` |
 | `hal` | ✅ | Rasgos `Transport` / `SensorDevice` — implementables por embassy |
 | `ansi` | ✅ | Analizador de secuencias de escape ANSI/VT (máquina de estados, no_std) |
-| `std` | ❌ | Utilidades exclusivas de std (adaptadores de manifiesto TOML/JSON) del lado del host |
+| `std` | ❌ | Reenvía `std` a las dependencias opcionales `serde` / `postcard` para compilaciones en el host |
+
+El manifiesto son datos serde sin más. hare **no** incluye adaptadores TOML ni JSON: cárgalo
+con el formato serde que prefieras (la demo del host usa `serde_json`, una dependencia de
+desarrollo).
 
 ## Inicio rápido
 
 ### Nodo sensor (firmware embassy)
 
 ```rust
-use hare::wire::{Node, Frame, MsgType};
 use hare::manifest::SensorUnit;
+use hare::wire::{Node, NodeState, Request};
 
-let mut node = Node::new(transport);  // your embassy UART
-node.register_station(&station_manifest);
+let mut node = Node::new(transport, 1);      // station 1, over your embassy UART
+let mut sensor = MyTempSensor;               // implements hare::hal::SensorDevice
+node.send_status(NodeState::Boot, "firmware v0.1", 0).ok();
 
 loop {
-    let req = node.poll().await;
-    let temp = read_adc().await;      // your hardware
-    node.telemetry(STATION_ID, REGISTER_TEMP, temp, SensorUnit::Celsius)
-        .await;
+    match node.poll(&mut sensor) {           // sync; drive it from an embassy task
+        Ok(Request::ReadRegister(req)) => {
+            let value = sensor.celsius(req.register);
+            node.send_telemetry(req.register, value, SensorUnit::Celsius, 0).ok();
+        }
+        Ok(Request::Discover(_)) => {
+            node.send_discover_response("ntc-temp-sensor", 2).ok();
+        }
+        Ok(_) => {}
+        Err(_) => { /* transport error: re-init the UART or reset */ }
+    }
 }
 ```
 
-La referencia completa está en [`examples/embassy_node.rs`](./examples/embassy_node.rs); no
-compila en el host (necesita el HAL de una placa) y está pensada para copiarse en un proyecto
-de firmware.
+`Node` es síncrono por diseño: itera sobre `Transport::recv` por sí mismo, así que funciona
+con cualquier transporte (UART de embassy, transceptor RS-485, una tubería de prueba) y no
+añade ninguna dependencia de runtime. La referencia completa está en
+[`examples/embassy_node.rs`](../../examples/embassy_node.rs) — una plantilla que compila en el
+host como stub y que lleva el cableado real de la placa en su bucle principal de embassy
+comentado.
 
 ### Lado de la pasarela (evernight)
 
 ```rust
-use hare::wire::{Gateway, Frame};
-use hare::manifest::HardwareManifest;
+use hare::wire::{Gateway, Incoming};
 
-let manifest = HardwareManifest::from_toml_str(&toml_str)?;
-let mut gw = Gateway::new(transport);      // serial port
+let mut gateway = Gateway::new(transport);   // serial port / USB-CDC / socket
+gateway.send_discover()?;
 
-let frame = gw.recv().await?;              // Frame from a sensor node
-let telemetry = frame.as_telemetry()?;
-println!("station {} register {} = {} {}",
-    telemetry.station_id, telemetry.register, telemetry.value, telemetry.unit);
+loop {
+    match gateway.recv()? {
+        Incoming::Telemetry(t) => println!(
+            "station {} register 0x{:04X} = {} {:?}",
+            t.station_id, t.register, t.value, t.unit
+        ),
+        Incoming::DiscoverResponse(d) => println!(
+            "found {} (station {}, {} registers)",
+            d.name, d.station_id, d.register_count
+        ),
+        Incoming::Alarm(a) => eprintln!("alarm at station {}: {}", a.station_id, a.message),
+        Incoming::Status(s) => println!("station {} is {:?}", s.station_id, s.state),
+        Incoming::Nack(n) => eprintln!("node {} rejected: {}", n.station_id, n.message),
+    }
+}
 ```
 
-Hay una demo de extremo a extremo exclusiva del host en
-[`examples/host_demo.rs`](./examples/host_demo.rs).
+Un recorrido completo exclusivo del host (descubrimiento, lectura de registros, telemetría)
+está en [`examples/host_demo.rs`](../../examples/host_demo.rs).
 
 ### Extremo a extremo en una MCU emulada
 
-El miembro del workspace [`qemu-mps2/`](./qemu-mps2/) es una demo de firmware para Cortex-M4
-que se ejecuta bajo QEMU y reporta telemetría de temperatura por UART;
-`examples/host_gateway.rs`, en el mismo directorio, decodifica esas tramas en el host. Además
-sirve como banco de pruebas del protocolo de cable:
+El miembro del workspace [`qemu-mps2/`](../../qemu-mps2/) es una demo de firmware para
+Cortex-M4 que se ejecuta bajo QEMU y reporta telemetría de temperatura por UART;
+`qemu-mps2/examples/host_gateway.rs` decodifica esas tramas en el host. Además sirve como
+banco de pruebas del protocolo de cable:
 
 ```bash
-qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
+# Firmware (thumbv7em, 4 MB of flash and RAM in the MPS2-AN386 memory map)
+cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi
+# Host-side decoder
+cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu
+
+qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
     -display none -serial stdio \
-    -kernel target/thumbv7em-none-eabi/release/kei-qemu-demo \
+    -kernel target/thumbv7em-none-eabi/release/kei-qemu-mps2 \
     | target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
 ```
 
 ## Principios de diseño
 
 1. **Solo `#![no_std]` + `alloc`** — sin std, sin tokio, sin llamadas al SO. La capa de cable
-   asigna los búferes de trama mediante `alloc`, así que hay que dimensionar el heap del
-   dispositivo de destino en lugar de asumir una cifra fija.
+   asigna los búferes de trama mediante `alloc`, así que hay que presupuestar un heap en el
+   destino en lugar de una cifra fija.
 2. **Serde en todas partes** — los tipos del manifiesto derivan `Serialize`/`Deserialize`; las
    cargas útiles del cable usan [`postcard`](https://docs.rs/postcard), un formato binario
    compacto para no_std.
-3. **Códec ≠ transporte** — codificar y decodificar son funciones puras que devuelven
-   `Vec<u8>`; el llamador gestiona la E/S (async de embassy, tokio, IRQ del kernel — todo
-   funciona).
+3. **La codificación es pura, la E/S pertenece al llamador** — `Frame::encode` devuelve
+   `Vec<u8>` y `decode_frame` devuelve un `Frame` ya analizado; el llamador es dueño del
+   transporte (UART de embassy, puerto serie de tokio, IRQ del kernel) y de la política de
+   reintentos.
 4. **Esquema compartido, implementaciones independientes** — los nodos embassy y evernight
-   deserializan el mismo `HardwareManifest`, pero sus conversores de tiempo de ejecución
-   siguen separados (no_std no puede usar cierres ni `Arc<dyn Fn>`).
+   deserializan el mismo `HardwareManifest`, pero sus conversores de runtime siguen separados:
+   un nodo no_std no puede depender de los tipos de runtime ni de los objetos trait de la
+   pasarela.
 
 ## Relación con el kernel KEI
 
 Hare se extrajo del repositorio [`kei`](https://github.com/celestia-island/kei), donde vivía
 bajo `packages/kei/`. El kernel está **congelado**
-([hoja de ruta](https://docs.celestia.world)), y el crate puente ahora vive aquí para poder
+([hoja de ruta](https://docs.celestia.world)), y el crate puente vive ahora aquí para poder
 seguir evolucionando mientras el kernel no lo hace.
 
 Ambos son artefactos independientes que comparten un contrato en lugar de código:
@@ -162,42 +194,47 @@ Ambos son artefactos independientes que comparten un contrato en lugar de códig
 | Rol | candidato a largo plazo para sustituir a Linux en la pasarela | el contrato del lado de la MCU |
 
 Este repositorio es autocontenido: Rust estable, su propio `rust-toolchain.toml` y un
-workspace cuyo único miembro (`qemu-mps2/`) vive dentro de este mismo directorio. Clonarlo te
-da un workspace funcional: no necesitas clonar el kernel ni ningún override de `rustup`.
+workspace cuyo único miembro (`qemu-mps2/`) vive dentro de este directorio. Clonarlo te da un
+workspace funcional: no necesitas clonar el kernel ni ningún override de `rustup`.
 
 ## Plataformas objetivo y CI
 
-| Comprobación | Plataforma objetivo |
+| Puerta de CI | Destino |
 |---|---|
-| `test` | host (`x86_64`), todas las características |
+| `test` | host `x86_64`, todas las características |
 | `no_std-check` | `thumbv7em-none-eabi` (Cortex-M, el objetivo principal de embassy) |
 | `no_std-riscv` | `riscv32imc-unknown-none-elf` (objetivo secundario) |
-| `fmt` / `clippy` / `bench-check` | host, `--all-targets` |
+| `fmt` | host, `cargo fmt --all --check` |
+| `clippy` | host, `--all-features --all-targets -- -D warnings` |
+| `bench-check` | host, `cargo bench --no-run` |
 
-Todo se ejecuta en los runners autoalojados de la organización; el flujo de trabajo es
-[`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
+Las puertas de CI se ejecutan en los runners autoalojados de la organización; el flujo de
+trabajo de publicación (`.github/workflows/publish.yml`) se ejecuta en runners alojados en
+GitHub porque este repositorio es público. Las definiciones de las puertas viven en
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 
 ## Documentación
 
 - Referencia de la API: [docs.rs/hare](https://docs.rs/hare)
-- Traducciones: [简体中文](./docs/zh-Hans/README.md) · [繁體中文](./docs/zh-Hant/README.md) ·
-  [日本語](./docs/ja/README.md) · [한국어](./docs/ko/README.md) · [Français](./docs/fr/README.md) ·
-  [Español](./docs/es/README.md) · [Русский](./docs/ru/README.md) ·
-  [العربية](./docs/ar/README.md)
+- Traducciones: [简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md) ·
+  [日本語](../ja/README.md) · [한국어](../ko/README.md) · [Français](../fr/README.md) ·
+  [Español](../es/README.md) · [Русский](../ru/README.md) ·
+  [العربية](../ar/README.md)
 
-Todas las traducciones anteriores son versiones del README en inglés, que es la fuente de
-verdad y prevalece ante cualquier discrepancia.
+Cada `docs/<language>/README.md` es una traducción; el README en inglés es la fuente de
+verdad cuando discrepan.
 
 ## Licencia
 
-SySL-1.0 (Synthetic Source License) — consulta [LICENSE](./LICENSE).
+SySL-1.0 (Synthetic Source License) — consulta [LICENSE](../../LICENSE).
 
 ---
 
 ## Procedencia
 
-Extraído textualmente del repositorio del kernel [`kei`](https://github.com/celestia-island/kei)
-(`packages/kei/`) el 2026-10-20 por decisión del usuario; se renombró a `kei-wire` en su
-creación y a `hare` (Omagari Hare, 小鉤晴) el 2026-10-21 por decisión del usuario. El kernel
-mantiene su congelación; este repositorio sigue adelante con los crates puente (wire /
-manifest / codec / hal).
+Los módulos fuente del crate se extrajeron del repositorio del kernel
+[`kei`](https://github.com/celestia-island/kei) (`packages/kei/`) el 2026-10-20 por decisión
+del usuario, se renombraron a `kei-wire` en su creación y a `hare` (Omagari Hare, 小鉤晴) el
+2026-10-21 por decisión del usuario. El kernel mantiene su congelación; este repositorio hace
+avanzar los crates puente (wire / manifest / codec / hal / ansi). El README, los metadatos del
+paquete y la documentación se reescribieron cuando el crate pasó a su propio repositorio.

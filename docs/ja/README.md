@@ -27,11 +27,11 @@
 
 </div>
 
-Hare は、**embassy ベースのセンサーノード**（ベアメタルの MCU）と、**ゲートウェイブローカー**
+Hare は、**embassy ベースのセンサーノード**（ベアメタルの MCU）と**ゲートウェイブローカー**
 （現在は Linux 上で動作する [`evernight`](https://github.com/celestia-island/evernight)）
 との間にある共有契約レイヤーです。双方が同じハードウェアマニフェストをデシリアライズし、
 同じワイヤフレーミングで通信するため、センサーファームウェアとゲートウェイサービスは
-それぞれ独立して開発しても、そのまま組み合わせて動作させることができます。
+それぞれ独立に開発しても、そのまま組み合わせて動作させられます。
 
 `#![no_std]` + `alloc` で動作します。std も tokio も OS コールもなく、独自の非同期
 ランタイムも持ちません。トランスポートは embassy ノードが提供し、プロトコルは hare が
@@ -44,9 +44,9 @@ Hare は、**embassy ベースのセンサーノード**（ベアメタルの MC
   スキーマです。
 - **ワイヤプロトコル**（`hare::wire`）— センサーノードとゲートウェイ間の
   UART/USB-CDC/SPI 向けのコンパクトなバイナリフレーミングプロトコル：`0xCE` マジック、
-  `u16` 長、`postcard` ペイロード、CRC16-Modbus トレーラ。
-- **プロトコル種別識別子**（`hare::codec`）— `ProtocolKind` と、Modbus、MC プロトコル、
-  EtherNet/IP-CIP、S7comm、CAN 用の不透明な `ProtocolFrame` コンテナ。エンコード／
+  `u16` 長、`u8` メッセージ種別、`postcard` ペイロード、CRC16-Modbus トレーラ。
+- **プロトコル種別識別子**（`hare::codec`）— Modbus、MC プロトコル、EtherNet/IP-CIP、
+  S7comm、CAN 用の `ProtocolKind` と不透明な `ProtocolFrame` コンテナ。エンコード／
   デコードのロジック自体は hare ではなく evernight に属します。
 - **HAL トレイト**（`hare::hal`）— embassy ノードが自前のハードウェアに対して実装する
   `Transport` および `SensorDevice` トレイト。
@@ -74,77 +74,107 @@ no_std 向けのフルセット（`wire`、`manifest`、`codec`、`hal`、`ansi`
 | `codec` | ✅ | プロトコル種別識別子と不透明な `ProtocolFrame` コンテナ |
 | `hal` | ✅ | `Transport` / `SensorDevice` トレイト — embassy で実装可能 |
 | `ansi` | ✅ | ANSI/VT エスケープシーケンスパーサ（ステートマシン、no_std） |
-| `std` | ❌ | ホスト側向けの std 専用ヘルパー（TOML/JSON マニフェストアダプタ） |
+| `std` | ❌ | ホスト向けビルドで、オプションの `serde` / `postcard` 依存へ `std` を転送 |
+
+マニフェストは素の serde データです。hare は TOML や JSON のアダプタを**一切**同梱して
+いません。任意の serde フォーマットでロードしてください（ホストデモでは開発用依存の
+`serde_json` を使用しています）。
 
 ## クイックスタート
 
 ### センサーノード（embassy ファームウェア）
 
 ```rust
-use hare::wire::{Node, Frame, MsgType};
 use hare::manifest::SensorUnit;
+use hare::wire::{Node, NodeState, Request};
 
-let mut node = Node::new(transport);  // your embassy UART
-node.register_station(&station_manifest);
+let mut node = Node::new(transport, 1);      // station 1, over your embassy UART
+let mut sensor = MyTempSensor;               // implements hare::hal::SensorDevice
+node.send_status(NodeState::Boot, "firmware v0.1", 0).ok();
 
 loop {
-    let req = node.poll().await;
-    let temp = read_adc().await;      // your hardware
-    node.telemetry(STATION_ID, REGISTER_TEMP, temp, SensorUnit::Celsius)
-        .await;
+    match node.poll(&mut sensor) {           // sync; drive it from an embassy task
+        Ok(Request::ReadRegister(req)) => {
+            let value = sensor.celsius(req.register);
+            node.send_telemetry(req.register, value, SensorUnit::Celsius, 0).ok();
+        }
+        Ok(Request::Discover(_)) => {
+            node.send_discover_response("ntc-temp-sensor", 2).ok();
+        }
+        Ok(_) => {}
+        Err(_) => { /* transport error: re-init the UART or reset */ }
+    }
 }
 ```
 
-完全なリファレンスは [`examples/embassy_node.rs`](./examples/embassy_node.rs) にあります。
-これはホスト上ではコンパイルされず（ボード固有の HAL が必要）、ファームウェア
-プロジェクトにコピーして使うことを想定しています。
+`Node` は設計上同期型です。自ら `Transport::recv` をループするため、どのような
+トランスポート（embassy の UART、RS-485 トランシーバ、テスト用パイプ）でも動作し、
+ランタイム依存も追加しません。完全なリファレンスは
+[`examples/embassy_node.rs`](../../examples/embassy_node.rs) にあります。これはホスト上では
+スタブとしてコンパイルされ、実際のボード配線はコメントアウトされた embassy のメインループに
+記述されているテンプレートです。
 
 ### ゲートウェイ側（evernight）
 
 ```rust
-use hare::wire::{Gateway, Frame};
-use hare::manifest::HardwareManifest;
+use hare::wire::{Gateway, Incoming};
 
-let manifest = HardwareManifest::from_toml_str(&toml_str)?;
-let mut gw = Gateway::new(transport);      // serial port
+let mut gateway = Gateway::new(transport);   // serial port / USB-CDC / socket
+gateway.send_discover()?;
 
-let frame = gw.recv().await?;              // Frame from a sensor node
-let telemetry = frame.as_telemetry()?;
-println!("station {} register {} = {} {}",
-    telemetry.station_id, telemetry.register, telemetry.value, telemetry.unit);
+loop {
+    match gateway.recv()? {
+        Incoming::Telemetry(t) => println!(
+            "station {} register 0x{:04X} = {} {:?}",
+            t.station_id, t.register, t.value, t.unit
+        ),
+        Incoming::DiscoverResponse(d) => println!(
+            "found {} (station {}, {} registers)",
+            d.name, d.station_id, d.register_count
+        ),
+        Incoming::Alarm(a) => eprintln!("alarm at station {}: {}", a.station_id, a.message),
+        Incoming::Status(s) => println!("station {} is {:?}", s.station_id, s.state),
+        Incoming::Nack(n) => eprintln!("node {} rejected: {}", n.station_id, n.message),
+    }
+}
 ```
 
-ホスト専用のエンドツーエンドデモは [`examples/host_demo.rs`](./examples/host_demo.rs) に
-あります。
+ホストのみで完結する一連のウォークスルー（ディスカバリ、レジスタ読み出し、テレメトリ）は
+[`examples/host_demo.rs`](../../examples/host_demo.rs) にあります。
 
 ### エミュレートされた MCU でのエンドツーエンド実行
 
-ワークスペースメンバー [`qemu-mps2/`](./qemu-mps2/) は、QEMU 上で動作し UART 経由で
-温度テレメトリを報告する Cortex-M4 ファームウェアのデモです。同じディレクトリ内の
-`examples/host_gateway.rs` がそのフレームをホスト側でデコードします。これはワイヤ
-プロトコルのテストハーネスも兼ねています：
+ワークスペースメンバーの [`qemu-mps2/`](../../qemu-mps2/) は、QEMU 上で動作し UART 経由で
+温度テレメトリを報告する Cortex-M4 ファームウェアのデモです。
+`qemu-mps2/examples/host_gateway.rs` がそのフレームをホスト側でデコードします。これは
+ワイヤプロトコルのテストハーネスも兼ねています：
 
 ```bash
-qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
+# Firmware (thumbv7em, 4 MB of flash and RAM in the MPS2-AN386 memory map)
+cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi
+# Host-side decoder
+cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu
+
+qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
     -display none -serial stdio \
-    -kernel target/thumbv7em-none-eabi/release/kei-qemu-demo \
+    -kernel target/thumbv7em-none-eabi/release/kei-qemu-mps2 \
     | target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
 ```
 
 ## 設計原則
 
 1. **`#![no_std]` + `alloc` のみ** — std も tokio も OS コールもありません。ワイヤ層は
-   `alloc` を介してフレームバッファを確保するため、ターゲット上では固定サイズではなく
-   ヒープ領域を見込んでください。
+   `alloc` を介してフレームバッファを確保するため、ターゲット上では固定値ではなくヒープ領域を
+   見込んでください。
 2. **全面的に Serde を採用** — マニフェスト型は `Serialize`/`Deserialize` を derive し、
-   ワイヤペイロードには [`postcard`](https://docs.rs/postcard) というコンパクトな
-   no_std バイナリ形式を使用します。
-3. **コーデック ≠ トランスポート** — エンコード／デコードは `Vec<u8>` を返す純粋関数で
-   あり、I/O は呼び出し側が所有します（embassy の非同期、tokio、カーネル IRQ のいずれでも
-   動作します）。
+   ワイヤペイロードにはコンパクトな no_std バイナリ形式である
+   [`postcard`](https://docs.rs/postcard) を使用します。
+3. **エンコードは純粋、I/O は呼び出し側に帰属** — `Frame::encode` は `Vec<u8>` を返し、
+   `decode_frame` はパース済みの `Frame` を返します。トランスポート（embassy の UART、
+   tokio のシリアル、カーネルの IRQ）とリトライポリシーは呼び出し側が所有します。
 4. **スキーマは共有、実装は独立** — embassy ノードと evernight はどちらも同じ
-   `HardwareManifest` をデシリアライズしますが、実行時の変換器は別々に保たれます
-   （no_std ではクロージャや `Arc<dyn Fn>` を使用できません）。
+   `HardwareManifest` をデシリアライズしますが、実行時の変換器は別々に保たれます。no_std の
+   ノードは、ゲートウェイ側のランタイム型やトレイトオブジェクトに依存できません。
 
 ## KEI カーネルとの関係
 
@@ -161,45 +191,50 @@ Hare は [`kei`](https://github.com/celestia-island/kei) リポジトリの `pac
 | ツールチェーン | nightly、`aarch64-unknown-none` ファミリ | stable、`thumbv7em-none-eabi` / `riscv32imc-unknown-none-elf` |
 | 役割 | ゲートウェイ上の Linux を置き換える長期的な候補 | MCU 側の契約 |
 
-このリポジトリは自己完結しています。stable Rust、独自の `rust-toolchain.toml`、そして
-唯一のメンバー（`qemu-mps2/`）がこのディレクトリ内にあるワークスペースで構成されています。
-クローンすればそのまま動作するワークスペースが得られ、カーネルのチェックアウトも
-`rustup` のオーバーライドも不要です。
+このリポジトリは自己完結しています。stable Rust、独自の `rust-toolchain.toml`、そして唯一の
+メンバー（`qemu-mps2/`）がこのディレクトリ内にあるワークスペースで構成されています。
+クローンすればそのまま動作するワークスペースが得られ、カーネルのチェックアウトも `rustup` の
+オーバーライドも不要です。
 
 ## ターゲットと CI
 
 | ゲート | ターゲット |
 |---|---|
-| `test` | ホスト（`x86_64`）、全フィーチャー |
+| `test` | ホスト `x86_64`、全フィーチャー |
 | `no_std-check` | `thumbv7em-none-eabi`（Cortex-M、embassy の主要ターゲット） |
 | `no_std-riscv` | `riscv32imc-unknown-none-elf`（副次ターゲット） |
-| `fmt` / `clippy` / `bench-check` | ホスト、`--all-targets` |
+| `fmt` | ホスト、`cargo fmt --all --check` |
+| `clippy` | ホスト、`--all-features --all-targets -- -D warnings` |
+| `bench-check` | ホスト、`cargo bench --no-run` |
 
-すべて組織のセルフホストランナー上で実行されます。ワークフローは
-[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) にあります。
+CI ゲートは組織のセルフホストランナー上で実行されます。リリースワークフロー
+（`.github/workflows/publish.yml`）は、このリポジトリが公開されているため GitHub ホストの
+ランナー上で実行されます。ゲートの定義は
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) にあります。
 
 ## ドキュメント
 
 - API リファレンス：[docs.rs/hare](https://docs.rs/hare)
-- 翻訳：[简体中文](./docs/zh-Hans/README.md) · [繁體中文](./docs/zh-Hant/README.md) ·
-  [日本語](./docs/ja/README.md) · [한국어](./docs/ko/README.md) · [Français](./docs/fr/README.md) ·
-  [Español](./docs/es/README.md) · [Русский](./docs/ru/README.md) ·
-  [العربية](./docs/ar/README.md)
+- 翻訳：[简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md) ·
+  [日本語](../ja/README.md) · [한국어](../ko/README.md) · [Français](../fr/README.md) ·
+  [Español](../es/README.md) · [Русский](../ru/README.md) ·
+  [العربية](../ar/README.md)
 
-本ページは各言語への翻訳ドキュメントのひとつです。記述の正は英語版 README であり、
-翻訳との間に齟齬がある場合は英語版を参照してください。
+各 `docs/<language>/README.md` は翻訳です。翻訳と英語版の内容が食い違う場合は、英語版
+README が正となります。
 
 ## ライセンス
 
-SySL-1.0（Synthetic Source License）に基づいて提供されます。詳細は [LICENSE](./LICENSE) を
-参照してください。
+SySL-1.0（Synthetic Source License）。詳細は [LICENSE](../../LICENSE) を参照してください。
 
 ---
 
 ## 来歴
 
-2026-10-20 のユーザー裁定により [`kei`](https://github.com/celestia-island/kei) カーネル
-リポジトリ（`packages/kei/`）からそのまま抽出され、作成時に `kei-wire` へ、2026-10-21 の
-ユーザー裁定により `hare`（Omagari Hare, 小鉤晴）へと改名されました。カーネルは凍結状態を
-維持し、このリポジトリがブリッジクレート（wire / manifest / codec / hal）を引き継いで
-発展させていきます。
+本クレートのソースモジュールは、2026-10-20 のユーザー裁定により
+[`kei`](https://github.com/celestia-island/kei) カーネルリポジトリ（`packages/kei/`）から
+抽出されました。作成時に `kei-wire` へ、さらに 2026-10-21 のユーザー裁定により `hare`
+（Omagari Hare, 小鉤晴）へと改名されています。カーネルは凍結状態を維持し、このリポジトリが
+ブリッジクレート（wire / manifest / codec / hal / ansi）を引き継いで発展させていきます。
+クレートが独自リポジトリへ移った際に、README、パッケージメタデータ、ドキュメントが
+書き直されました。

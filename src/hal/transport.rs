@@ -8,8 +8,8 @@
 /// A bidirectional byte transport (UART, USB-CDC, SPI, TCP, etc.).
 ///
 /// This is a **synchronous** trait (no async) so it can be implemented
-/// equally by blocking kernel code (kei-kernel) and embassy async code
-/// (via the embassy adapter in `kei::hal::embassy_adapter`, which wraps
+/// equally by blocking kernel code and embassy async code
+/// (via an embassy adapter that wraps
 /// async embassy I/O into the sync interface using embassy's blocking
 /// primitives, or callers use the async API directly).
 ///
@@ -100,7 +100,7 @@ pub type NodeAddr = u8;
 /// This trait extends [`Transport`] with address-aware send/recv.
 ///
 /// For point-to-point links (single node per UART), use plain [`Transport`]
-/// and ignore addresses — the kei wire protocol already carries a
+/// and ignore addresses — the hare wire protocol already carries a
 /// `station_id` in its payload.
 ///
 /// ## When to use

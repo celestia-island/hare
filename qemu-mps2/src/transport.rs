@@ -1,6 +1,6 @@
-//! kei Transport implementation over the CMSDK APB UART.
+//! hare Transport implementation over the CMSDK APB UART.
 //!
-//! This bridges kei's `Transport` trait (used by `hare::wire::Node`) to
+//! This bridges hare's `Transport` trait (used by `hare::wire::Node`) to
 //! the raw UART driver. The transport is blocking — `recv` spins until
 //! a byte arrives. This is fine for a simple sensor node that does
 //! nothing else while waiting for a gateway request.

@@ -1,4 +1,4 @@
-//! kei wire protocol benchmarks — pure logic performance on host.
+//! hare wire protocol benchmarks — pure logic performance on host.
 //!
 //! Measures the hot paths that embassy MCU nodes and evernight gateways
 //! hit most frequently:

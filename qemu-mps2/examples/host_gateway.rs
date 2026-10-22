@@ -1,5 +1,5 @@
 //! Host-side Gateway demo — connects to QEMU's serial output and decodes
-//! kei wire protocol frames from the emulated sensor node.
+//! hare wire protocol frames from the emulated sensor node.
 //!
 //! This is an example binary — compiles with `cargo build --example host_gateway`.
 //! The firmware (`src/main.rs`) is not compiled when building examples.
@@ -46,7 +46,7 @@ impl Transport for FdTransport {
 }
 
 fn main() {
-    println!("kei QEMU Gateway demo\n");
+    println!("hare QEMU Gateway demo\n");
     println!("Connect this to QEMU's UART via:");
     println!("  cargo build --release && ./run_qemu.sh | cargo run --bin host_gateway\n");
 

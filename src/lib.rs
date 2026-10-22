@@ -13,7 +13,7 @@
 //! | `codec` | Protocol type identifiers (`ProtocolKind`, `ProtocolFrame`) |
 //! | `hal` | HAL traits (Transport, SensorDevice) — embassy-implementable |
 //! | `ansi` | ANSI/VT escape-sequence parser (state machine, no_std) |
-//! | `std` | Enable std-only helpers (TOML/JSON manifest adapters) |
+//! | `std` | Forwards `std` to the optional `serde` / `postcard` dependencies |
 
 extern crate alloc;
 

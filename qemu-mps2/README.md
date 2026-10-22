@@ -1,25 +1,25 @@
-# kei QEMU Demo
+# hare QEMU demo
 
-**End-to-end demo of the kei wire protocol running on an emulated ARM Cortex-M4 MCU.**
+**End-to-end demo of the hare wire protocol running on an emulated ARM Cortex-M4 MCU.**
 
 This crate contains:
-- **Firmware** (`src/main.rs`) — a bare-metal `#![no_std]` sensor node that runs under QEMU's `mps2-an386` (Cortex-M4) machine. It uses the kei wire protocol to send temperature telemetry over CMSDK APB UART.
+- **Firmware** (`src/main.rs`) — a bare-metal `#![no_std]` sensor node that runs under QEMU's `mps2-an386` (Cortex-M4) machine. It uses the hare wire protocol to send temperature telemetry over CMSDK APB UART.
 - **Host Gateway** (`examples/host_gateway.rs`) — a std binary that decodes the wire frames from QEMU's serial output.
 
 ## Quick start
 
 ```bash
 # 1. Build the firmware (thumbv7em-none-eabi)
-cargo build --release
+cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi
 
 # 2. Build the host gateway
-cargo build --example host_gateway --target x86_64-unknown-linux-gnu
+cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu
 
-# 3. Run end-to-end (QEMU → gateway)
-qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
+# 3. Run end-to-end (QEMU → gateway); the workspace target dir is the repo root
+qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
     -display none -serial stdio \
-    -kernel target/thumbv7em-none-eabi/release/kei-qemu-demo \
-    | target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
+    -kernel ../target/thumbv7em-none-eabi/release/kei-qemu-mps2 \
+    | ../target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
 ```
 
 Or use the helper script:
@@ -30,7 +30,7 @@ Or use the helper script:
 ## Expected output
 
 ```
-[gateway] STATUS     station=1 state=Boot detail=kei-qemu-demo v0.1
+[gateway] STATUS     station=1 state=Boot detail=kei-qemu-mps2 v0.1
 [gateway] TELEMETRY  station=1 reg=0x0100 value=20.0 unit=°C t=1
 [gateway] TELEMETRY  station=1 reg=0x0100 value=20.0 unit=°C t=2
 ...
@@ -41,8 +41,8 @@ Or use the helper script:
 ```
 QEMU (mps2-an386, Cortex-M4)
 ┌───────────────────────────────┐
-│ kei-qemu-demo firmware        │
-│  kei::wire::Node              │
+│ kei-qemu-mps2 firmware        │
+│  hare::wire::Node             │
 │    ↓ send_telemetry()         │
 │  CMSDK APB UART0 (0x40004000) │
 └───────────┬───────────────────┘
@@ -50,7 +50,7 @@ QEMU (mps2-an386, Cortex-M4)
             ↓
 ┌───────────────────────────────┐
 │ host_gateway (std)            │
-│  kei::wire::Gateway           │
+│  hare::wire::Gateway          │
 │    recv() → Telemetry/Status  │
 └───────────────────────────────┘
 ```
@@ -61,7 +61,7 @@ QEMU (mps2-an386, Cortex-M4)
 |------|-------------|
 | `src/main.rs` | Firmware entry point — initializes UART, heap, runs Node loop |
 | `src/uart.rs` | CMSDK APB UART driver (raw register access, NOT PL011) |
-| `src/transport.rs` | `kei::hal::Transport` impl over the UART |
+| `src/transport.rs` | `hare::hal::Transport` impl over the UART |
 | `memory.x` | Linker script for mps2-an386 (4MB flash, 4MB RAM) |
 | `examples/host_gateway.rs` | Host-side frame decoder |
 | `.cargo/config.toml` | QEMU runner config |

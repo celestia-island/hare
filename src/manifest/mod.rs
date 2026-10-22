@@ -5,9 +5,9 @@
 //! The manifest describes: facilities (boxes), connections (protocol + address),
 //! stations (register maps), alarm rules, and scale transforms.
 //!
-//! This module is `#![no_std]` + `alloc`. The only dependency is `serde`.
-//! TOML/JSON parsing adapters live behind the `std` feature flag (they
-//! need the `toml` / `serde_json` crates which lean std).
+//! This module is `#![no_std]` + `alloc`. The only dependency is `serde`,
+//! so a manifest can be loaded with any serde format (TOML, JSON, postcard);
+//! the crate ships no file-format adapters of its own.
 
 pub mod scale;
 pub mod sensor;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Launch the kei QEMU demo end-to-end:
-#   1. Build the firmware for thumbv7em-none-eabi
-#   2. Build the host_gateway example
+# Launch the hare QEMU demo end-to-end:
+#   1. Build the kei-qemu-mps2 firmware for thumbv7em-none-eabi
+#   2. Build the host_gateway example for the host
 #   3. Start QEMU with the firmware, piping UART to the gateway
 #
 # Usage: ./run_demo.sh
@@ -11,10 +11,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-echo "=== Building firmware (thumbv7em-none-eabi) ==="
-cargo build --release 2>&1 | tail -3
+# The workspace target dir lives at the repository root, not next to this member.
+TARGET_DIR="$(cd .. && pwd)/target"
 
-ELF="target/thumbv7em-none-eabi/release/kei-qemu-demo"
+echo "=== Building firmware (thumbv7em-none-eabi) ==="
+cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi 2>&1 | tail -3
+
+ELF="$TARGET_DIR/thumbv7em-none-eabi/release/kei-qemu-mps2"
 
 if [ ! -f "$ELF" ]; then
     echo "ERROR: firmware not found at $ELF"
@@ -22,13 +25,14 @@ if [ ! -f "$ELF" ]; then
 fi
 
 echo "=== Building host gateway ==="
-cargo build --example host_gateway --target x86_64-unknown-linux-gnu 2>&1 | tail -3 || \
-    cargo build --example host_gateway 2>&1 | tail -3
+cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu 2>&1 | tail -3
 
-GATEWAY="target/debug/examples/host_gateway"
-GATEWAY_RELEASE="target/release/examples/host_gateway"
-GW="${GATEWAY_RELEASE:-$GATEWAY}"
-[ -f "$GATEWAY" ] && GW="$GATEWAY"
+GW="$TARGET_DIR/x86_64-unknown-linux-gnu/debug/examples/host_gateway"
+
+if [ ! -f "$GW" ]; then
+    echo "ERROR: host gateway not found at $GW"
+    exit 1
+fi
 
 echo "=== Starting QEMU + gateway ==="
 echo "Firmware: $ELF"

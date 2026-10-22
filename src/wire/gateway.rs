@@ -1,7 +1,7 @@
 //! Gateway-side wire protocol handler.
 //!
-//! [`Gateway`] is the high-level API the evernight broker (or kei-kernel)
-//! uses to talk to sensor nodes. It wraps a [`Transport`] and provides:
+//! [`Gateway`] is the high-level API the evernight broker uses to talk to
+//! sensor nodes. It wraps a [`Transport`] and provides:
 //!
 //! - `send_read_register()` — ask a node for a register value
 //! - `send_write_register()` — command a node to write a value

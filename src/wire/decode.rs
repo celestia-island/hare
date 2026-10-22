@@ -7,7 +7,7 @@
 //! ## Usage
 //!
 //! ```ignore
-//! # use kei::wire::FrameDecoder;
+//! # use hare::wire::FrameDecoder;
 //! let mut dec = FrameDecoder::new();
 //! loop {
 //!     let mut buf = [0u8; 64];

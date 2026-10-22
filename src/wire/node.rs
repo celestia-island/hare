@@ -16,7 +16,7 @@
 //!
 //! `Node` is **sync** — it does `recv_byte()` on the transport in a loop
 //! internally. Embassy callers wrap this in `embassy_futures::block_on` or
-//! call `poll()` from an embassy task. This keeps kei runtime-agnostic
+//! call `poll()` from an embassy task. This keeps hare runtime-agnostic
 //! (no dependency on `embassy-async` or `tokio`).
 //!
 //! For embassy async usage, see `examples/embassy_node.rs`.

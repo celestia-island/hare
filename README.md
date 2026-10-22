@@ -42,7 +42,7 @@ own — the embassy node provides the transport, hare provides the protocol.
   rules, station configs, and scale transforms. The same schema both sides deserialize.
 - **Wire protocol** (`hare::wire`) — a compact binary framing protocol for
   UART/USB-CDC/SPI between sensor nodes and the gateway: `0xCE` magic, `u16` length,
-  `postcard` payload, CRC16-Modbus trailer.
+  `u8` message type, `postcard` payload, CRC16-Modbus trailer.
 - **Protocol type identifiers** (`hare::codec`) — `ProtocolKind` and an opaque
   `ProtocolFrame` container for Modbus, MC Protocol, EtherNet/IP-CIP, S7comm, and CAN.
   The encode/decode logic itself belongs to evernight, not to hare.
@@ -72,59 +72,87 @@ only needs the modules it links.
 | `codec` | ✅ | Protocol type identifiers and the opaque `ProtocolFrame` container |
 | `hal` | ✅ | `Transport` / `SensorDevice` traits — embassy-implementable |
 | `ansi` | ✅ | ANSI/VT escape-sequence parser (state machine, no_std) |
-| `std` | ❌ | Std-only helpers (TOML/JSON manifest adapters) for the host side |
+| `std` | ❌ | Forwards `std` to the optional `serde` / `postcard` dependencies for host builds |
+
+The manifest is plain serde data. hare ships **no** TOML or JSON adapters: load it with
+the serde format of your choice (the host demo uses `serde_json`, a dev-dependency).
 
 ## Quick start
 
 ### Sensor node (embassy firmware)
 
 ```rust
-use hare::wire::{Node, Frame, MsgType};
 use hare::manifest::SensorUnit;
+use hare::wire::{Node, NodeState, Request};
 
-let mut node = Node::new(transport);  // your embassy UART
-node.register_station(&station_manifest);
+let mut node = Node::new(transport, 1);      // station 1, over your embassy UART
+let mut sensor = MyTempSensor;               // implements hare::hal::SensorDevice
+node.send_status(NodeState::Boot, "firmware v0.1", 0).ok();
 
 loop {
-    let req = node.poll().await;
-    let temp = read_adc().await;      // your hardware
-    node.telemetry(STATION_ID, REGISTER_TEMP, temp, SensorUnit::Celsius)
-        .await;
+    match node.poll(&mut sensor) {           // sync; drive it from an embassy task
+        Ok(Request::ReadRegister(req)) => {
+            let value = sensor.celsius(req.register);
+            node.send_telemetry(req.register, value, SensorUnit::Celsius, 0).ok();
+        }
+        Ok(Request::Discover(_)) => {
+            node.send_discover_response("ntc-temp-sensor", 2).ok();
+        }
+        Ok(_) => {}
+        Err(_) => { /* transport error: re-init the UART or reset */ }
+    }
 }
 ```
 
-The full reference is [`examples/embassy_node.rs`](./examples/embassy_node.rs); it does
-not compile on the host (it needs a board HAL) and is meant to be copied into a firmware
-project.
+`Node` is synchronous by design: it loops on `Transport::recv` itself, so it works with
+any transport (embassy UART, RS-485 transceiver, a test pipe) and adds no runtime
+dependency. The full reference lives in
+[`examples/embassy_node.rs`](./examples/embassy_node.rs) — a template that compiles on the
+host as a stub and carries the real board wiring in its commented embassy main loop.
 
 ### Gateway side (evernight)
 
 ```rust
-use hare::wire::{Gateway, Frame};
-use hare::manifest::HardwareManifest;
+use hare::wire::{Gateway, Incoming};
 
-let manifest = HardwareManifest::from_toml_str(&toml_str)?;
-let mut gw = Gateway::new(transport);      // serial port
+let mut gateway = Gateway::new(transport);   // serial port / USB-CDC / socket
+gateway.send_discover()?;
 
-let frame = gw.recv().await?;              // Frame from a sensor node
-let telemetry = frame.as_telemetry()?;
-println!("station {} register {} = {} {}",
-    telemetry.station_id, telemetry.register, telemetry.value, telemetry.unit);
+loop {
+    match gateway.recv()? {
+        Incoming::Telemetry(t) => println!(
+            "station {} register 0x{:04X} = {} {:?}",
+            t.station_id, t.register, t.value, t.unit
+        ),
+        Incoming::DiscoverResponse(d) => println!(
+            "found {} (station {}, {} registers)",
+            d.name, d.station_id, d.register_count
+        ),
+        Incoming::Alarm(a) => eprintln!("alarm at station {}: {}", a.station_id, a.message),
+        Incoming::Status(s) => println!("station {} is {:?}", s.station_id, s.state),
+        Incoming::Nack(n) => eprintln!("node {} rejected: {}", n.station_id, n.message),
+    }
+}
 ```
 
-A host-only end-to-end demo lives in [`examples/host_demo.rs`](./examples/host_demo.rs).
+A complete host-only walkthrough (discovery, register read, telemetry) lives in
+[`examples/host_demo.rs`](./examples/host_demo.rs).
 
 ### End-to-end on an emulated MCU
 
 The workspace member [`qemu-mps2/`](./qemu-mps2/) is a Cortex-M4 firmware demo that runs
-under QEMU and reports temperature telemetry over UART; `examples/host_gateway.rs` in the
-same directory decodes those frames on the host. It doubles as the wire-protocol test
-harness:
+under QEMU and reports temperature telemetry over UART; `qemu-mps2/examples/host_gateway.rs`
+decodes those frames on the host. It doubles as the wire-protocol test harness:
 
 ```bash
-qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
+# Firmware (thumbv7em, 4 MB of flash and RAM in the MPS2-AN386 memory map)
+cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi
+# Host-side decoder
+cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu
+
+qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
     -display none -serial stdio \
-    -kernel target/thumbv7em-none-eabi/release/kei-qemu-demo \
+    -kernel target/thumbv7em-none-eabi/release/kei-qemu-mps2 \
     | target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
 ```
 
@@ -135,11 +163,12 @@ qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
    a fixed figure.
 2. **Serde everywhere** — manifest types derive `Serialize`/`Deserialize`; wire payloads
    use [`postcard`](https://docs.rs/postcard), a compact no_std binary format.
-3. **Codec ≠ transport** — encode/decode are pure functions returning `Vec<u8>`; the
-   caller owns I/O (embassy async, tokio, kernel IRQ — all work).
+3. **Encoding is pure, I/O belongs to the caller** — `Frame::encode` returns `Vec<u8>` and
+   `decode_frame` returns a parsed `Frame`; the caller owns the transport (embassy UART,
+   tokio serial, kernel IRQ) and the retry policy.
 4. **Shared schema, independent implementations** — embassy nodes and evernight both
-   deserialize the same `HardwareManifest`, but their runtime converters stay separate
-   (no_std cannot use closures or `Arc<dyn Fn>`).
+   deserialize the same `HardwareManifest`, but their runtime converters stay separate:
+   a no_std node cannot depend on the gateway's runtime types or trait objects.
 
 ## Relationship to the KEI kernel
 
@@ -163,13 +192,16 @@ you a working workspace — no kernel checkout and no `rustup` override needed.
 
 | Gate | Target |
 |---|---|
-| `test` | host (`x86_64`), all features |
+| `test` | host `x86_64`, all features |
 | `no_std-check` | `thumbv7em-none-eabi` (Cortex-M, the primary embassy target) |
 | `no_std-riscv` | `riscv32imc-unknown-none-elf` (secondary target) |
-| `fmt` / `clippy` / `bench-check` | host, `--all-targets` |
+| `fmt` | host, `cargo fmt --all --check` |
+| `clippy` | host, `--all-features --all-targets -- -D warnings` |
+| `bench-check` | host, `cargo bench --no-run` |
 
-Everything runs on the organization's self-hosted runners; the workflow is
-[`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
+The CI gates run on the organization's self-hosted runners; the release workflow
+(`.github/workflows/publish.yml`) runs on GitHub-hosted runners because this repository is
+public. The gate definitions live in [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
 ## Documentation
 
@@ -179,6 +211,9 @@ Everything runs on the organization's self-hosted runners; the workflow is
   [Español](./docs/es/README.md) · [Русский](./docs/ru/README.md) ·
   [العربية](./docs/ar/README.md)
 
+Each `docs/<language>/README.md` is a translation; the English README is the source of
+truth when they disagree.
+
 ## License
 
 SySL-1.0 (Synthetic Source License) — see [LICENSE](./LICENSE).
@@ -187,7 +222,9 @@ SySL-1.0 (Synthetic Source License) — see [LICENSE](./LICENSE).
 
 ## Provenance
 
-Extracted verbatim from the [`kei`](https://github.com/celestia-island/kei) kernel repo
-(`packages/kei/`) on 2026-10-20 by user ruling, renamed `kei-wire` at creation and to
-`hare` (Omagari Hare, 小鉤晴) on 2026-10-21 by user ruling. The kernel keeps its freeze;
-this repo carries the bridge crates (wire / manifest / codec / hal) forward.
+The crate's source modules were extracted from the
+[`kei`](https://github.com/celestia-island/kei) kernel repository (`packages/kei/`) on
+2026-10-20 by user ruling, renamed `kei-wire` at creation and to `hare` (Omagari Hare,
+小鉤晴) on 2026-10-21 by user ruling. The kernel keeps its freeze; this repository carries
+the bridge crates (wire / manifest / codec / hal / ansi) forward. The README, the package
+metadata, and the documentation were rewritten when the crate moved to its own repository.
