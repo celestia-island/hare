@@ -233,7 +233,7 @@ pub fn trim_duplicate_payload(function: u8, frame: &[u8]) -> Result<Vec<u8>, Mod
     if data_total == reported_bc {
         return Ok(frame.to_vec());
     }
-    if reported_bc == 0 || data_total % reported_bc != 0 {
+    if reported_bc == 0 || !data_total.is_multiple_of(reported_bc) {
         return Err(ModbusError::LengthUndecidable { len: frame.len() });
     }
     let mult = data_total / reported_bc;
@@ -257,7 +257,6 @@ pub fn trim_duplicate_payload(function: u8, frame: &[u8]) -> Result<Vec<u8>, Mod
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
 
     /// 黄金向量：CRC16("123456789") = 0x4B37（Modbus 多项式标准检验值）。
     #[test]
