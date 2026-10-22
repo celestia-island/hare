@@ -1,22 +1,12 @@
-# CI for the `kei` no_std bridge library.
+# CI for the `hare` no_std bridge library.
 #
-# ⚠️ THIS FILE DOES NOT RUN ANYWHERE TODAY. GitHub only reads the workflow
-# directory at the REPOSITORY ROOT, so a `.github/` nested inside `packages/kei/`
-# is inert while this crate lives inside the kei repository. The library's gates
-# that actually run are `.github/workflows/kei-lib-ci.yml` at the repo root.
+# `hare` lives at the repository root, so this is the workflow GitHub actually
+# reads. The workspace itself is self-contained: its only member, `qemu-mps2/`,
+# lives inside this directory and carries the wire-protocol demo.
 #
-# It is kept here as the ready-made pipeline for the case where this package is
-# extracted into its own repository. That is not quite a plain copy: `license-file`
-# stays `../../LICENSE` because that is the family convention for packages under
-# `packages/` (cherino, hikari, kirino) and because the consumers keep
-# `[[licenses.clarify]]` entries pointing at exactly that path; cargo rewrites it to
-# `LICENSE` when packaging. An extraction must therefore also copy the repository-root
-# `LICENSE` in and repoint `license-file` at it. The workspace itself is
-# self-contained: its only member, `qemu-mps2/`, lives inside this directory. If you
-# change the library's gate set, change BOTH files; they are meant to stay identical,
-# job for job. Note that the clippy gate MUST keep `--all-targets` — without it,
-# tests/examples/benches are silently skipped (measured 2026-09-16: a broken example
-# survived behind that gap).
+# Keep the gate set honest: the clippy gate MUST keep `--all-targets` — without
+# it, tests/examples/benches are silently skipped (measured 2026-09-16: a broken
+# example survived behind that gap).
 name: CI
 on:
   workflow_dispatch:
@@ -47,8 +37,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv7em-none-eabi
-      # Check that kei compiles with only the no_std-compatible features.
-      - run: cargo check --target thumbv7em-none-eabi --no-default-features --features "wire,manifest,codec,hal"
+      # Check that hare compiles with only the no_std-compatible features.
+      - run: cargo check --target thumbv7em-none-eabi --no-default-features --features "wire,manifest,codec,hal,ansi"
 
   # ── no_std check on RISC-V (secondary target) ────────────────────────────-
   no_std-riscv:

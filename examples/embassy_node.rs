@@ -1,8 +1,8 @@
 //! Embassy-based sensor node example (NOT compilable on host).
 //!
-//! This is a reference implementation showing how to use `kei` on a real
+//! This is a reference implementation showing how to use `hare` on a real
 //! MCU (STM32 / nRF52 / RP2040) with embassy. It does NOT compile in the
-//! kei workspace (which targets host); copy it into your embassy project
+//! hare workspace (which targets host); copy it into your embassy project
 //! and adapt the HAL imports for your specific board.
 //!
 //! ## What it does
@@ -15,7 +15,7 @@
 //! ## Wiring
 //!
 //! ```text
-//! STM32 PA9 (TX) ──┬── RS-485 transceiver ──┬── gateway / kei-kernel
+//! STM32 PA9 (TX) ──┬── RS-485 transceiver ──┬── gateway / evernight
 //! STM32 PA10 (RX) ─┘                        │
 //! STM32 PA0 (ADC) ─── NTC thermistor ───────┘
 //! ```
@@ -26,13 +26,13 @@
 // use embassy_stm32::adc::{Adc, SampleTime};
 // use embassy_stm32::Peripherals;
 
-// The kei imports below are inside the commented main() to avoid
+// The hare imports below are inside the commented main() to avoid
 // "unused import" errors when this template compiles on host.
 // In your real embassy project, uncomment them.
 
 // ── Embassy Transport adapter ───────────────────────────────────────────────
 //
-// This wraps embassy's async UART into kei's sync Transport trait.
+// This wraps embassy's async UART into hare's sync Transport trait.
 // On embassy, you'd call `embassy_futures::block_on` inside `send`/`recv`
 // to bridge async→sync, OR (preferred) use `Node::recv_frame` / `send_frame`
 // directly in an async context. The sync trait is provided for callers that
@@ -123,7 +123,7 @@ impl hare::hal::SensorDevice for AdcTempSensor {
 //     let mut adc = Adc::new(p.ADC1, &mut Delay);
 //     let mut temp_pin = p.PA0;
 //
-//     // Create the kei node.
+//     // Create the hare node.
 //     let transport = EmbassyUartTransport { rx, tx };
 //     let mut node = Node::new(transport, 1); // station ID = 1
 //     let mut sensor = AdcTempSensor { adc_raw: 0, alarm_threshold: 50.0 };

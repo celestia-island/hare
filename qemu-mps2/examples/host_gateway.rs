@@ -1,20 +1,19 @@
 //! Host-side Gateway demo — connects to QEMU's serial output and decodes
-//! kei wire protocol frames from the emulated sensor node.
+//! hare wire protocol frames from the emulated sensor node.
 //!
-//! This is an example binary — compiles with `cargo build --example host_gateway`.
-//! The firmware (`src/main.rs`) is not compiled when building examples.
+//! This is a Cargo example — build it with
+//! `cargo build -p kei-qemu-mps2 --example host_gateway`.
 //!
 //! Usage:
-//!   1. Build the firmware:  cargo build --release
-//!   2. Start QEMU with a PTY:  (see run_qemu.sh)
-//!   3. Run this gateway:  cargo run --bin host_gateway -- <serial-device>
+//!   1. Build the firmware: `cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi`
+//!   2. Run the gateway: `cargo run -p kei-qemu-mps2 --example host_gateway -- <serial-device>`
 //!
 //! On Linux the serial device is /dev/pts/N (printed by QEMU on stderr).
 //! On Windows use a named pipe (\\.\pipe\...) or QEMU's -serial stdio
 //! and pipe stdin/stdout directly.
 //!
-//! For the simplest demo, use `run_qemu.sh` which launches QEMU with
-//! -serial stdio and pipes it to this gateway.
+//! For the simplest demo, run `./run_demo.sh` in this directory: it builds
+//! both sides and pipes QEMU's `-serial stdio` into this gateway.
 
 use std::env;
 use std::io::{self, Read, Write};
@@ -46,9 +45,9 @@ impl Transport for FdTransport {
 }
 
 fn main() {
-    println!("kei QEMU Gateway demo\n");
+    println!("hare QEMU Gateway demo\n");
     println!("Connect this to QEMU's UART via:");
-    println!("  cargo build --release && ./run_qemu.sh | cargo run --bin host_gateway\n");
+    println!("  ./run_demo.sh\n");
 
     let mut gateway = Gateway::new(FdTransport {
         stdin: io::stdin(),

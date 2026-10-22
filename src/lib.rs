@@ -1,5 +1,5 @@
 #![no_std]
-//! # kei — no_std embedded bridge library
+//! # hare — no_std embedded bridge library
 //!
 //! The shared contract layer between embassy-based sensor nodes and the
 //! evernight gateway broker.
@@ -12,7 +12,8 @@
 //! | `manifest` | Hardware manifest schema (register maps, alarms, stations) |
 //! | `codec` | Protocol type identifiers (`ProtocolKind`, `ProtocolFrame`) |
 //! | `hal` | HAL traits (Transport, SensorDevice) — embassy-implementable |
-//! | `std` | Enable std-only helpers (TOML/JSON manifest adapters) |
+//! | `ansi` | ANSI/VT escape-sequence parser (state machine, no_std) |
+//! | `std` | Forwards `std` to the optional `serde` / `postcard` dependencies |
 
 extern crate alloc;
 
