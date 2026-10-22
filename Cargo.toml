@@ -1,14 +1,11 @@
 [package]
 name = "hare"
-version = "0.1.3"
+version = "0.1.0"
 edition = "2021"
 authors = ["langyo <langyo.china@gmail.com>"]
 license-file = "LICENSE"
-description = """\
-hare — no_std embedded bridge library (extracted from the kei kernel repo 2026-10-20): manifest schema, wire protocol, \
-and protocol type identifiers shared between embassy-based sensor nodes \
-and the evernight gateway broker.\
-"""
+description = "A #![no_std] embedded bridge library for the Celestia IoT ecosystem: hardware manifest schema, wire protocol, protocol type identifiers, and HAL traits shared by embassy sensor nodes and the evernight gateway."
+readme = "README.md"
 repository = "https://github.com/celestia-island/hare"
 keywords = ["no-std", "embedded", "embassy", "iot", "industrial"]
 categories = ["embedded", "no-std", "network-programming"]

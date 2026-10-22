@@ -1,0 +1,75 @@
+name: Publish
+
+# Publishes `hare` to crates.io. The token is an *environment* secret on the
+# `release` environment, so only jobs that declare that environment can read it.
+# Trigger it by pushing a `v*` tag (the tag must match Cargo.toml's version).
+on:
+  push:
+    tags: [v*]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (must equal Cargo.toml, e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Refuse to publish anything but the version the tag (or input) names ──
+  verify-version:
+    name: Verify version matches tag
+    runs-on: [self-hosted, linux, x64, local]
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve the requested version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Compare with Cargo.toml
+        run: |
+          WANT="${{ steps.version.outputs.version }}"
+          HAVE=$(grep -oP '^version\s*=\s*"\K[^"]+' Cargo.toml | head -1)
+          if [ "$HAVE" != "$WANT" ]; then
+            echo "::error::Cargo.toml version ($HAVE) != requested version ($WANT)"
+            exit 1
+          fi
+          echo "Publishing version $HAVE"
+
+  # ── Package check: what exactly will be uploaded ────────────────────────-
+  package-check:
+    name: Package check
+    runs-on: [self-hosted, linux, x64, local]
+    timeout-minutes: 60
+    needs: verify-version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo package -p hare --list
+      - run: cargo package -p hare --no-verify
+
+  # ── Real publish, gated on the `release` environment token ──────────────-
+  publish:
+    name: Publish to crates.io
+    runs-on: [self-hosted, linux, x64, local]
+    timeout-minutes: 120
+    needs: [verify-version, package-check]
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+        run: cargo publish -p hare
