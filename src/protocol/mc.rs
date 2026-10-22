@@ -7,64 +7,68 @@
 
 use alloc::vec::Vec;
 
-/// MC 设备代码（寻址空间）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 三菱软元件类型（MC 帧中的设备码）——与 evernight 原实现逐一对应
+/// （2026-10-22 保真修正：hare#3 首版发明了原版没有的变体且丢了 T/C）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum McDevice {
-    /// D 软元件（数据寄存器，16 位字）。
-    DataRegister,
-    /// W 软元件（链接寄存器，16 位字）。
-    LinkRegister,
-    /// R 软元件（文件寄存器，16 位字）。
-    FileRegister,
-    /// B 软元件（链接继电器，位）。
-    LinkRelay,
-    /// X 软元件（输入，位）。
-    Input,
-    /// Y 软元件（输出，位）。
-    Output,
-    /// M 软元件（内部继电器，位）。
-    InternalRelay,
+    /// 数据寄存器（D*）。设备码 `A8`（字访问）。
+    D,
+    /// 内部继电器（M*）。设备码 `90`。
+    M,
+    /// 输入（X*）。设备码 `9C`。
+    X,
+    /// 输出（Y*）。设备码 `9D`。
+    Y,
+    /// 定时器当前值（T*）。设备码 `C2`。
+    T,
+    /// 计数器当前值（C*）。设备码 `C4`。
+    C,
 }
 
 impl McDevice {
-    /// ASCII 形式的设备代码字符（3E ASCII 帧与配置面使用）。
+    /// ASCII 设备代码字符（3E ASCII 帧与配置面使用）。
+    #[must_use]
     pub fn code_char(&self) -> &'static str {
         match self {
-            Self::DataRegister => "D",
-            Self::LinkRegister => "W",
-            Self::FileRegister => "R",
-            Self::LinkRelay => "B",
-            Self::Input => "X",
-            Self::Output => "Y",
-            Self::InternalRelay => "M",
+            Self::D => "D",
+            Self::M => "M",
+            Self::X => "X",
+            Self::Y => "Y",
+            Self::T => "T",
+            Self::C => "C",
         }
     }
 
-    /// 从设备代码字符解析。
+    /// 从单字符设备码解析（大小写均可，对齐原实现）。
     pub fn from_code_char(s: &str) -> Result<Self, McError> {
         match s {
-            "D" => Ok(Self::DataRegister),
-            "W" => Ok(Self::LinkRegister),
-            "R" => Ok(Self::FileRegister),
-            "B" => Ok(Self::LinkRelay),
-            "X" => Ok(Self::Input),
-            "Y" => Ok(Self::Output),
-            "M" => Ok(Self::InternalRelay),
+            "D" | "d" => Ok(Self::D),
+            "M" | "m" => Ok(Self::M),
+            "X" | "x" => Ok(Self::X),
+            "Y" | "y" => Ok(Self::Y),
+            "T" | "t" => Ok(Self::T),
+            "C" | "c" => Ok(Self::C),
             other => Err(McError::UnknownDevice(other.into())),
         }
     }
 
-    /// 3E 二进制帧的设备代码字节。
+    /// 3E 二进制帧的设备代码字节（rust7/evernight 线格式约定）。
+    #[must_use]
     pub fn binary_code(&self) -> u8 {
         match self {
-            Self::DataRegister => 0xA8,
-            Self::LinkRegister => 0xB4,
-            Self::FileRegister => 0xAF,
-            Self::LinkRelay => 0xA0,
-            Self::Input => 0x9C,
-            Self::Output => 0x9D,
-            Self::InternalRelay => 0x90,
+            Self::D => 0xA8,
+            Self::M => 0x90,
+            Self::X => 0x9C,
+            Self::Y => 0x9D,
+            Self::T => 0xC2,
+            Self::C => 0xC4,
         }
+    }
+}
+
+impl core::fmt::Display for McDevice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.code_char())
     }
 }
 
@@ -199,7 +203,7 @@ mod tests {
     #[test]
     fn read_request_golden_bytes() {
         // D100 起 10 字：帧头 11 字节 + 体 10 字节（副头2+子命令2+地址3+设备1+数量2）
-        let frame = build_read_word_request(McDevice::DataRegister, 100, 10, 0, 0, 0);
+        let frame = build_read_word_request(McDevice::D, 100, 10, 0, 0, 0);
         assert_eq!(frame.len(), 21);
         assert_eq!(&frame[..2], &[0x50, 0x00]); // 3E 请求副头
         assert_eq!(frame[2], 0); // network
@@ -213,8 +217,7 @@ mod tests {
 
     #[test]
     fn write_request_carries_values_little_endian() {
-        let frame =
-            build_write_word_request(McDevice::DataRegister, 200, &[0x1234, 0x5678], 1, 2, 3);
+        let frame = build_write_word_request(McDevice::D, 200, &[0x1234, 0x5678], 1, 2, 3);
         // 体 = 副头2+子2+地址3+设备1+数量2+数据4 = 14；帧 = 11+14
         assert_eq!(frame.len(), 25);
         assert_eq!(&frame[21..23], &[0x34, 0x12]); // 数据 @ 体偏移 10
@@ -266,16 +269,30 @@ mod tests {
     #[test]
     fn device_codes_round_trip() {
         for d in [
-            McDevice::DataRegister,
-            McDevice::LinkRegister,
-            McDevice::FileRegister,
-            McDevice::LinkRelay,
-            McDevice::Input,
-            McDevice::Output,
-            McDevice::InternalRelay,
+            McDevice::D,
+            McDevice::M,
+            McDevice::X,
+            McDevice::Y,
+            McDevice::T,
+            McDevice::C,
         ] {
             assert_eq!(McDevice::from_code_char(d.code_char()).unwrap(), d);
+            assert_eq!(
+                McDevice::from_code_char(&d.code_char().to_lowercase()).unwrap(),
+                d
+            );
         }
         assert!(McDevice::from_code_char("Q").is_err());
+    }
+
+    #[test]
+    fn device_binary_codes_match_original() {
+        // 与 evernight mc_protocol.rs 原实现逐一对齐（迁移保真钉）
+        assert_eq!(McDevice::D.binary_code(), 0xA8);
+        assert_eq!(McDevice::M.binary_code(), 0x90);
+        assert_eq!(McDevice::X.binary_code(), 0x9C);
+        assert_eq!(McDevice::Y.binary_code(), 0x9D);
+        assert_eq!(McDevice::T.binary_code(), 0xC2);
+        assert_eq!(McDevice::C.binary_code(), 0xC4);
     }
 }
