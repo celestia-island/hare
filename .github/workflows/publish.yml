@@ -3,6 +3,11 @@ name: Publish
 # Publishes `hare` to crates.io. The token is an *environment* secret on the
 # `release` environment, so only jobs that declare that environment can read it.
 # Trigger it by pushing a `v*` tag (the tag must match Cargo.toml's version).
+#
+# This repository is public, so GitHub-hosted minutes are free; the release path
+# deliberately runs on `ubuntu-latest` instead of queueing behind the
+# self-hosted farm (see _ledger/known-env-issues.md: queueing is not a failure,
+# but a release should not wait for it either).
 on:
   push:
     tags: [v*]
@@ -23,7 +28,7 @@ jobs:
   # ── Refuse to publish anything but the version the tag (or input) names ──
   verify-version:
     name: Verify version matches tag
-    runs-on: [self-hosted, linux, x64, local]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -50,7 +55,7 @@ jobs:
   # ── Package check: what exactly will be uploaded ────────────────────────-
   package-check:
     name: Package check
-    runs-on: [self-hosted, linux, x64, local]
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: verify-version
     steps:
@@ -62,7 +67,7 @@ jobs:
   # ── Real publish, gated on the `release` environment token ──────────────-
   publish:
     name: Publish to crates.io
-    runs-on: [self-hosted, linux, x64, local]
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: [verify-version, package-check]
     environment: release
