@@ -163,6 +163,7 @@ pub fn generate_scl_db_definition(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn area_codes_match_wire_format() {

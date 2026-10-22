@@ -60,12 +60,22 @@ pub fn verify_crc(frame: &[u8]) -> Result<(), ModbusError> {
 /// 纯编解码层错误（传输错误由消费方定义）。
 #[derive(Debug)]
 pub enum ModbusError {
-    TooShort { len: usize },
-    CrcMismatch { calc: u16, wire: u16 },
+    TooShort {
+        len: usize,
+    },
+    CrcMismatch {
+        calc: u16,
+        wire: u16,
+    },
     /// 从站异常响应（功能码 MSB 置位 + 异常码）。
-    Exception { function: u8, code: ExceptionCode },
+    Exception {
+        function: u8,
+        code: ExceptionCode,
+    },
     /// 无法推断帧长（字节不足以判定边界）。
-    LengthUndecidable { len: usize },
+    LengthUndecidable {
+        len: usize,
+    },
 }
 
 /// Modbus 标准异常码（从站拒绝原因）。
@@ -109,10 +119,7 @@ pub fn parse_exception(frame: &[u8]) -> Result<Option<(u8, ExceptionCode)>, Modb
     if function & 0x80 == 0 {
         return Ok(None);
     }
-    Ok(Some((
-        function & 0x7F,
-        ExceptionCode::from_code(frame[2]),
-    )))
+    Ok(Some((function & 0x7F, ExceptionCode::from_code(frame[2]))))
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +223,8 @@ pub fn trim_duplicate_payload(function: u8, frame: &[u8]) -> Result<Vec<u8>, Mod
             code: ExceptionCode::IllegalFunction,
         });
     }
-    if frame.len() < 5 + 2 {
+    if frame.len() < 6 {
+        // 6 字节 = id + fc + bc + 1 数据字节 + crc2（单寄存器读的最小完整帧）
         return Err(ModbusError::TooShort { len: frame.len() });
     }
     let (byte_count_index, data_start) = (2usize, 3usize);
@@ -249,6 +257,7 @@ pub fn trim_duplicate_payload(function: u8, frame: &[u8]) -> Result<Vec<u8>, Mod
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     /// 黄金向量：CRC16("123456789") = 0x4B37（Modbus 多项式标准检验值）。
     #[test]
@@ -275,7 +284,10 @@ mod tests {
         // id=1 fc=3 bc=4 数据 0x0064 0x00C8 + 正确 CRC
         let mut frame = alloc::vec![0x01, 0x03, 0x04, 0x00, 0x64, 0x00, 0xC8];
         append_crc(&mut frame);
-        assert_eq!(parse_register_values(&frame).unwrap(), alloc::vec![100, 200]);
+        assert_eq!(
+            parse_register_values(&frame).unwrap(),
+            alloc::vec![100, 200]
+        );
     }
 
     #[test]
@@ -307,7 +319,10 @@ mod tests {
         assert_eq!(request_length_hint(&[0x01]), None);
         assert_eq!(request_length_hint(&[0x01, 0x83]), Some(5));
         assert_eq!(request_length_hint(&[0x01, 0x06]), Some(8));
-        assert_eq!(request_length_hint(&[0x01, 0x10, 0x00, 0x00, 0x00, 0x02]), None);
+        assert_eq!(
+            request_length_hint(&[0x01, 0x10, 0x00, 0x00, 0x00, 0x02]),
+            None
+        );
         assert_eq!(
             request_length_hint(&[0x01, 0x10, 0x00, 0x00, 0x00, 0x02, 0x04]),
             Some(13)
@@ -325,7 +340,8 @@ mod tests {
         // 构造 bc=4 的正常帧，然后手工重复数据体 2 份 + 坏 CRC
         let mut original = alloc::vec![0x01, 0x03, 0x04, 0x00, 0x64, 0x00, 0xC8];
         append_crc(&mut original);
-        let mut doubled = alloc::vec![0x01, 0x03, 0x04, 0x00, 0x64, 0x00, 0xC8, 0x00, 0x64, 0x00, 0xC8];
+        let mut doubled =
+            alloc::vec![0x01, 0x03, 0x04, 0x00, 0x64, 0x00, 0xC8, 0x00, 0x64, 0x00, 0xC8];
         append_crc(&mut doubled);
         let trimmed = trim_duplicate_payload(0x03, &doubled).unwrap();
         assert_eq!(trimmed.len(), original.len());

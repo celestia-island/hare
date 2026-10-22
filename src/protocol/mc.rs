@@ -73,9 +73,13 @@ impl McDevice {
 pub enum McError {
     UnknownDevice(Vec<u8>),
     /// 响应帧以非成功结束码开头。
-    EndCode { code: [u8; 2] },
+    EndCode {
+        code: [u8; 2],
+    },
     /// 帧长不足（协议头/体不完整）。
-    MalformedFrame { len: usize },
+    MalformedFrame {
+        len: usize,
+    },
 }
 
 /// 3E 请求副头部（批量读字）。
@@ -159,14 +163,25 @@ impl McResponse {
     }
 }
 
-/// 解析完整 MC 响应帧（3E 二进制响应：副头 0xD0 00 + 结束码 + 数据）。
+/// 解析完整 MC 响应帧（3E 二进制，与请求同构的 9 字节头）。
+///
+/// 线格式：`副头 0xD0 00 | network | pc | I/O(2) | station | data_len(2) |
+/// 结束码(2) | 数据...`——即结束码在 **frame[9..11]**，数据自 frame[11] 起。
+/// 与 evernight 原实现的全帧语义一致（真实 PLC 响应带完整头）。
 pub fn parse_response(frame: &[u8]) -> Result<McResponse, McError> {
-    // 最小响应 = 副头(2) + 结束码(2) = 4 字节
-    if frame.len() < 4 {
+    // 最小响应 = 头(9) + 结束码(2) = 11 字节
+    if frame.len() < 11 {
         return Err(McError::MalformedFrame { len: frame.len() });
     }
-    let end_code = [frame[2], frame[3]];
-    let data = if frame.len() > 4 { &frame[4..] } else { &[][..] };
+    if frame[0] != 0xD0 || frame[1] != 0x00 {
+        return Err(McError::MalformedFrame { len: frame.len() });
+    }
+    let end_code = [frame[9], frame[10]];
+    let data = if frame.len() > 11 {
+        &frame[11..]
+    } else {
+        &[][..]
+    };
     let words = data
         .as_chunks::<2>()
         .0
@@ -187,35 +202,37 @@ mod tests {
         let frame = build_read_word_request(McDevice::DataRegister, 100, 10, 0, 0, 0);
         assert_eq!(frame.len(), 21);
         assert_eq!(&frame[..2], &[0x50, 0x00]); // 3E 请求副头
-        assert_eq!(&frame[11..13], &CMD_BATCH_READ_WORD);
-        assert_eq!(frame[17], 0xA8); // D 设备码
-        assert_eq!(frame[18..20], [10, 0]); // 数量 LE
+        assert_eq!(frame[2], 0); // network
+        assert_eq!(frame[3], 0); // pc
+        assert_eq!(&frame[4..6], &[0xFF, 0x03]); // 目标模块 I/O
+        assert_eq!(frame[6], 0); // station
+        assert_eq!(&frame[11..13], &CMD_BATCH_READ_WORD); // 体起始 @11（9 字节头后）
+        assert_eq!(frame[18], 0xA8); // D 设备码（体偏移 7）
+        assert_eq!(frame[19..21], [10, 0]); // 数量 LE（体偏移 8）
     }
 
     #[test]
     fn write_request_carries_values_little_endian() {
-        let frame = build_write_word_request(
-            McDevice::DataRegister,
-            200,
-            &[0x1234, 0x5678],
-            1,
-            2,
-            3,
-        );
+        let frame =
+            build_write_word_request(McDevice::DataRegister, 200, &[0x1234, 0x5678], 1, 2, 3);
         // 体 = 副头2+子2+地址3+设备1+数量2+数据4 = 14；帧 = 11+14
         assert_eq!(frame.len(), 25);
-        assert_eq!(&frame[19..21], &[0x34, 0x12]);
-        assert_eq!(&frame[21..23], &[0x78, 0x56]);
-        // 寻址字段回读
-        assert_eq!(frame[1], 1); // network
-        assert_eq!(frame[2], 2); // pc
-        assert_eq!(frame[5], 3); // station
+        assert_eq!(&frame[21..23], &[0x34, 0x12]); // 数据 @ 体偏移 10
+        assert_eq!(&frame[23..25], &[0x78, 0x56]);
+        // 寻址字段回读（头布局：副头2/network/pc/IO2/station/长度2/保留2）
+        assert_eq!(frame[2], 1); // network
+        assert_eq!(frame[3], 2); // pc
+        assert_eq!(frame[6], 3); // station
     }
 
     #[test]
     fn response_parse_success_with_words() {
-        // 副头 D0 00 + 结束码 00 00 + 两字 LE
-        let frame = [0xD0, 0x00, 0x00, 0x00, 0x34, 0x12, 0x78, 0x56];
+        // 9 字节响应头（副头 D0 00 + net/pc/IO FF 03/station/长度 04 00）
+        // + 结束码 00 00 + 两字 LE
+        let frame = [
+            0xD0, 0x00, 0x00, 0x00, 0xFF, 0x03, 0x00, 0x04, 0x00, 0x00, 0x00, 0x34, 0x12, 0x78,
+            0x56,
+        ];
         let resp = parse_response(&frame).unwrap();
         assert!(resp.is_success());
         assert_eq!(resp.words, vec![0x1234, 0x5678]);
@@ -223,17 +240,26 @@ mod tests {
 
     #[test]
     fn response_parse_error_end_code() {
-        let frame = [0xD0, 0x00, 0x40, 0x00]; // 结束码 0x0040
+        // 头 + 结束码 0x0040（无数据）
+        let frame = [
+            0xD0, 0x00, 0x00, 0x00, 0xFF, 0x03, 0x00, 0x00, 0x00, 0x40, 0x00,
+        ];
         let resp = parse_response(&frame).unwrap();
         assert!(!resp.is_success());
         assert!(resp.words.is_empty());
     }
 
     #[test]
-    fn malformed_short_frame_rejected() {
+    fn malformed_frames_rejected() {
+        // 短于 11 字节
         assert!(matches!(
-            parse_response(&[0xD0, 0x00, 0x00]),
-            Err(McError::MalformedFrame { len: 3 })
+            parse_response(&[0xD0, 0x00, 0x00, 0x00, 0xFF, 0x03, 0x00, 0x00, 0x00]),
+            Err(McError::MalformedFrame { len: 9 })
+        ));
+        // 副头不是 D0 00
+        assert!(matches!(
+            parse_response(&[0x50, 0x00, 0, 0, 0xFF, 0x03, 0, 0, 0, 0, 0]),
+            Err(McError::MalformedFrame { .. })
         ));
     }
 

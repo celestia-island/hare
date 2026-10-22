@@ -30,6 +30,7 @@ pub mod hal;
 
 #[cfg(feature = "ansi")]
 pub mod ansi;
+pub mod protocol;
 
 /// Crate-wide version string.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
