@@ -26,7 +26,6 @@
 //!   width policy; the parser passes code points through verbatim)
 
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 
 // ── Events ─────────────────────────────────────────────────────────────
@@ -128,7 +127,7 @@ pub fn parse_sgr(params: &[u16]) -> Vec<SgrAttr> {
             7 => out.push(SgrAttr::Inverse(true)),
             8 => out.push(SgrAttr::Hidden(true)),
             9 => out.push(SgrAttr::Strikethrough(true)),
-            21 | 22 => out.push(SgrAttr::Bold(false)),
+            21 => out.push(SgrAttr::Bold(false)),
             22 => out.push(SgrAttr::Dim(false)),
             23 => out.push(SgrAttr::Italic(false)),
             24 => out.push(SgrAttr::Underline(false)),
@@ -236,6 +235,12 @@ pub struct AnsiParser {
     osc_seen_semi: bool,
     /// The event output buffer.
     events: Vec<AnsiEvent>,
+}
+
+impl Default for AnsiParser {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AnsiParser {
@@ -579,6 +584,7 @@ impl AnsiParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     fn events(input: &[u8]) -> Vec<AnsiEvent> {
         let mut p = AnsiParser::new();
