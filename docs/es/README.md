@@ -27,10 +27,10 @@
 
 </div>
 
-Hare es la capa de contrato compartida entre **los nodos de sensores basados en embassy**
-(MCU bare-metal) y **el broker de la pasarela** — hoy
+Hare es la capa de contrato compartida entre los **nodos de sensores basados en embassy**
+(MCU bare-metal) y el **broker de la pasarela** — hoy
 [`evernight`](https://github.com/celestia-island/evernight), ejecutándose sobre Linux. Ambos
-lados deserializan el mismo manifiesto de hardware y hablan el mismo entramado de cable, así
+lados deserializan el mismo manifiesto de hardware y hablan el mismo tramado de cable, así
 que el firmware de un sensor y el servicio de la pasarela pueden construirse de forma
 independiente y aun así encontrarse en el punto medio.
 
@@ -41,18 +41,24 @@ propio — el nodo embassy proporciona el transporte y hare proporciona el proto
 
 - **Esquema de manifiesto** (`hare::manifest`) — descripciones de hardware: mapas de
   registros, reglas de alarma, configuraciones de estación y transformaciones de escala. El
-  mismo esquema que ambos lados deserializan.
-- **Protocolo de cable** (`hare::wire`) — un protocolo de entramado binario compacto para
-  UART/USB-CDC/SPI entre los nodos de sensores y la pasarela: valor mágico `0xCE`, longitud
-  `u16`, tipo de mensaje `u8`, carga útil `postcard`, tráiler CRC16-Modbus.
+  mismo esquema que deserializan ambos lados.
+- **Protocolo de cable** (`hare::wire`) — un protocolo de tramado binario compacto para
+  UART/USB-CDC/SPI entre los nodos de sensores y la pasarela: byte mágico `0xCE`, longitud
+  `u16`, tipo de mensaje `u8`, carga útil `postcard` y tráiler CRC16-Modbus.
 - **Identificadores de tipo de protocolo** (`hare::codec`) — `ProtocolKind` y un contenedor
-  opaco `ProtocolFrame` para Modbus, MC Protocol, EtherNet/IP-CIP, S7comm y CAN. La lógica de
-  codificación y decodificación pertenece a evernight, no a hare.
+  opaco `ProtocolFrame` que transporta una trama de fabricante a través de la capa de cable
+  sin que hare la analice.
+- **Concentrador de protocolos** (`hare::protocol`) — los propios activos de protocolo de la
+  familia: CRC16 de Modbus y extracción de registros/bobinas, el tramado de petición/respuesta
+  de MC Protocol 3E de Mitsubishi, y el modelo de áreas/parámetros de S7comm con informes
+  DB → SCL. Los protocolos que necesitan una pila cliente completa de terceros permanecen en
+  el servicio de la pasarela.
 - **Rasgos HAL** (`hare::hal`) — los rasgos `Transport` y `SensorDevice` que los nodos embassy
-  implementan para su propio hardware.
+  implementan contra su propio hardware.
 - **Analizador ANSI/VT** (`hare::ansi`) — un analizador de secuencias de escape basado en una
-  máquina de estados que emite eventos semánticos, para terminales y registradores de
-  protocolo que necesitan entender un flujo de bytes sin mantener un modelo de pantalla.
+  máquina de estados que emite eventos semánticos, para terminales y herramientas de registro
+  de protocolo que necesitan entender un flujo de bytes sin tener que mantener un modelo de
+  pantalla.
 
 ## Instalación
 
@@ -61,9 +67,9 @@ propio — el nodo embassy proporciona el transporte y hare proporciona el proto
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-`default-features = false` es la opción correcta para el firmware de un nodo embassy: los
-valores por defecto son el conjunto no_std completo (`wire`, `manifest`, `codec`, `hal`,
-`ansi`), y un firmware normalmente solo necesita los módulos que enlaza.
+`default-features = false` es la opción correcta para un firmware embassy: los valores por
+defecto son el conjunto no_std completo (`wire`, `manifest`, `codec`, `hal`, `ansi`), y un
+firmware normalmente solo necesita los módulos que enlaza.
 
 ### Banderas de características
 
@@ -75,6 +81,8 @@ valores por defecto son el conjunto no_std completo (`wire`, `manifest`, `codec`
 | `hal` | ✅ | Rasgos `Transport` / `SensorDevice` — implementables por embassy |
 | `ansi` | ✅ | Analizador de secuencias de escape ANSI/VT (máquina de estados, no_std) |
 | `std` | ❌ | Reenvía `std` a las dependencias opcionales `serde` / `postcard` para compilaciones en el host |
+
+`hare::protocol` siempre se compila — no añade dependencias.
 
 El manifiesto son datos serde sin más. hare **no** incluye adaptadores TOML ni JSON: cárgalo
 con el formato serde que prefieras (la demo del host usa `serde_json`, una dependencia de
@@ -142,7 +150,7 @@ loop {
 Un recorrido completo exclusivo del host (descubrimiento, lectura de registros, telemetría)
 está en [`examples/host_demo.rs`](../../examples/host_demo.rs).
 
-### Extremo a extremo en una MCU emulada
+### De extremo a extremo en una MCU emulada
 
 El miembro del workspace [`qemu-mps2/`](../../qemu-mps2/) es una demo de firmware para
 Cortex-M4 que se ejecuta bajo QEMU y reporta telemetría de temperatura por UART;
@@ -170,13 +178,13 @@ qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
    cargas útiles del cable usan [`postcard`](https://docs.rs/postcard), un formato binario
    compacto para no_std.
 3. **La codificación es pura, la E/S pertenece al llamador** — `Frame::encode` devuelve
-   `Vec<u8>` y `decode_frame` devuelve un `Frame` ya analizado; el llamador es dueño del
+   `Vec<u8>` y `decode_frame` devuelve un `Frame` ya analizado; el llamador es responsable del
    transporte (UART de embassy, puerto serie de tokio, IRQ del kernel) y de la política de
    reintentos.
 4. **Esquema compartido, implementaciones independientes** — los nodos embassy y evernight
-   deserializan el mismo `HardwareManifest`, pero sus conversores de runtime siguen separados:
-   un nodo no_std no puede depender de los tipos de runtime ni de los objetos trait de la
-   pasarela.
+   deserializan el mismo `HardwareManifest`, pero sus conversores de runtime permanecen
+   separados: un nodo no_std no puede depender de los tipos de runtime ni de los objetos trait
+   de la pasarela.
 
 ## Relación con el kernel KEI
 
@@ -195,11 +203,11 @@ Ambos son artefactos independientes que comparten un contrato en lugar de códig
 
 Este repositorio es autocontenido: Rust estable, su propio `rust-toolchain.toml` y un
 workspace cuyo único miembro (`qemu-mps2/`) vive dentro de este directorio. Clonarlo te da un
-workspace funcional: no necesitas clonar el kernel ni ningún override de `rustup`.
+workspace funcional — no se necesita ni un checkout del kernel ni ningún override de `rustup`.
 
 ## Plataformas objetivo y CI
 
-| Puerta de CI | Destino |
+| Puerta | Objetivo |
 |---|---|
 | `test` | host `x86_64`, todas las características |
 | `no_std-check` | `thumbv7em-none-eabi` (Cortex-M, el objetivo principal de embassy) |
@@ -234,7 +242,7 @@ SySL-1.0 (Synthetic Source License) — consulta [LICENSE](../../LICENSE).
 
 Los módulos fuente del crate se extrajeron del repositorio del kernel
 [`kei`](https://github.com/celestia-island/kei) (`packages/kei/`) el 2026-10-20 por decisión
-del usuario, se renombraron a `kei-wire` en su creación y a `hare` (Omagari Hare, 小鉤晴) el
-2026-10-21 por decisión del usuario. El kernel mantiene su congelación; este repositorio hace
+del usuario; se renombraron a `kei-wire` en su creación y a `hare` (Omagari Hare, 小鉤晴) el
+2026-10-21 por decisión del usuario. El kernel sigue congelado; este repositorio hace
 avanzar los crates puente (wire / manifest / codec / hal / ansi). El README, los metadatos del
 paquete y la documentación se reescribieron cuando el crate pasó a su propio repositorio.

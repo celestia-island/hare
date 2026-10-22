@@ -42,9 +42,11 @@ Hare 是 **基于 embassy 的传感器节点**（裸机 MCU）与 **网关 broke
 - **Wire 线协议**（`hare::wire`）——传感器节点与网关之间 UART/USB-CDC/SPI 链路上的
   紧凑二进制分帧协议：`0xCE` 魔数、`u16` 长度、`u8` 消息类型、`postcard` 载荷、
   CRC16-Modbus 尾部校验。
-- **协议类型标识**（`hare::codec`）——`ProtocolKind`，以及用于 Modbus、MC Protocol、
-  EtherNet/IP-CIP、S7comm 和 CAN 的不透明容器 `ProtocolFrame`。编解码逻辑本身属于
-  evernight，而不属于 hare。
+- **协议类型标识**（`hare::codec`）——`ProtocolKind`，以及一个不透明的 `ProtocolFrame`
+  容器：它让厂商私有帧穿过 wire 层，而无需 hare 去解析。
+- **协议中枢**（`hare::protocol`）——家族自有的协议资产：Modbus CRC16 与寄存器/线圈
+  提取、三菱 MC Protocol 3E 的请求/响应分帧，以及带 DB → SCL 报告的 S7comm 区域/参数
+  模型。需要完整第三方客户端栈的协议仍留在网关服务中。
 - **HAL trait**（`hare::hal`）——`Transport` 与 `SensorDevice` 两个 trait，由 embassy
   节点针对自身硬件实现。
 - **ANSI/VT 解析器**（`hare::ansi`）——一个输出语义事件的状态机式转义序列解析器，面向
@@ -70,6 +72,8 @@ hare = { version = "0.1", default-features = false, features = ["wire", "manifes
 | `hal` | ✅ | `Transport` / `SensorDevice` trait——可由 embassy 实现 |
 | `ansi` | ✅ | ANSI/VT 转义序列解析器（状态机，no_std） |
 | `std` | ❌ | 在主机侧构建中把 `std` 转发给可选的 `serde` / `postcard` 依赖 |
+
+`hare::protocol` 始终会被编译——它不引入任何依赖。
 
 清单就是普通的 serde 数据。hare **不**自带 TOML 或 JSON 适配器：请用你选定的 serde 格式
 加载它（主机演示使用的是 dev-dependency `serde_json`）。

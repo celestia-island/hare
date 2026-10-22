@@ -30,7 +30,7 @@
 Hare는 **embassy 기반 센서 노드**(베어메탈 MCU)와 **게이트웨이 브로커** — 현재 Linux에서
 구동되는 [`evernight`](https://github.com/celestia-island/evernight) — 사이의 공유 계약
 계층입니다. 양측은 동일한 하드웨어 매니페스트를 역직렬화하고 동일한 와이어 프레이밍을
-사용하므로, 센서 펌웨어와 게이트웨이 서비스를 서로 독립적으로 개발하더라도 중간에서
+사용하므로, 센서 펌웨어와 게이트웨이 서비스를 각각 독립적으로 개발하더라도 중간에서
 맞물릴 수 있습니다.
 
 `#![no_std]` + `alloc`으로 구성됩니다. std도, tokio도, OS 시스템 콜도 없으며 자체 비동기
@@ -38,14 +38,17 @@ Hare는 **embassy 기반 센서 노드**(베어메탈 MCU)와 **게이트웨이 
 
 ## 기능
 
-- **매니페스트 스키마** (`hare::manifest`) — 레지스터 맵, 알람 규칙, 스테이션 설정, 스케일
-  변환을 아우르는 하드웨어 기술. 양측이 동일한 스키마를 역직렬화합니다.
+- **매니페스트 스키마** (`hare::manifest`) — 하드웨어 기술: 레지스터 맵, 알람 규칙,
+  스테이션 설정, 스케일 변환. 양측이 동일하게 역직렬화하는 스키마입니다.
 - **와이어 프로토콜** (`hare::wire`) — 센서 노드와 게이트웨이 사이의 UART/USB-CDC/SPI용
   컴팩트 바이너리 프레이밍 프로토콜: `0xCE` 매직, `u16` 길이, `u8` 메시지 타입,
   `postcard` 페이로드, CRC16-Modbus 트레일러.
-- **프로토콜 타입 식별자** (`hare::codec`) — `ProtocolKind`와, Modbus, MC Protocol,
-  EtherNet/IP-CIP, S7comm, CAN을 위한 불투명 `ProtocolFrame` 컨테이너. 인코드/디코드
-  로직 자체는 hare가 아니라 evernight에 속합니다.
+- **프로토콜 타입 식별자** (`hare::codec`) — `ProtocolKind`와, 벤더 프레임을 hare가 직접
+  파싱하지 않고 와이어 계층을 통과시키는 불투명 `ProtocolFrame` 컨테이너.
+- **프로토콜 허브** (`hare::protocol`) — 패밀리 자체의 프로토콜 자산: Modbus CRC16과
+  레지스터/코일 추출, Mitsubishi MC Protocol 3E 요청/응답 프레이밍, 그리고 DB → SCL
+  리포트를 포함하는 S7comm 영역/파라미터 모델. 완전한 서드파티 클라이언트 스택이 필요한
+  프로토콜은 게이트웨이 서비스에 남습니다.
 - **HAL 트레이트** (`hare::hal`) — embassy 노드가 자체 하드웨어에 대해 구현하는
   `Transport` 및 `SensorDevice` 트레이트.
 - **ANSI/VT 파서** (`hare::ansi`) — 화면 모델을 보유하지 않고도 바이트 스트림을 이해해야
@@ -74,9 +77,11 @@ hare = { version = "0.1", default-features = false, features = ["wire", "manifes
 | `ansi` | ✅ | ANSI/VT 이스케이프 시퀀스 파서 (상태 머신, no_std) |
 | `std` | ❌ | 호스트 빌드를 위해 선택적 `serde` / `postcard` 의존성으로 `std`를 전달 |
 
-매니페스트는 평범한 serde 데이터입니다. hare는 TOML이나 JSON 어댑터를
-**전혀 제공하지 않습니다**: 원하는 serde 포맷으로 로드하십시오(호스트 데모는
-dev-dependency인 `serde_json`을 사용합니다).
+`hare::protocol`은 항상 컴파일됩니다 — 의존성을 추가하지 않습니다.
+
+매니페스트는 평범한 serde 데이터입니다. hare는 TOML이나 JSON 어댑터를 **전혀 제공하지
+않습니다**: 원하는 serde 포맷으로 로드하십시오(호스트 데모는 dev-dependency인
+`serde_json`을 사용합니다).
 
 ## 빠른 시작
 
@@ -105,7 +110,7 @@ loop {
 }
 ```
 
-`Node`는 설계상 동기 방식입니다. 스스로 `Transport::recv`를 반복 호출하므로 어떤 전송
+`Node`는 설계상 동기 방식입니다: 스스로 `Transport::recv`를 반복 호출하므로 어떤 전송
 계층(embassy UART, RS-485 트랜시버, 테스트 파이프)과도 동작하며 런타임 의존성을 추가하지
 않습니다. 전체 레퍼런스는
 [`examples/embassy_node.rs`](../../examples/embassy_node.rs)에 있습니다 — 호스트에서는
@@ -160,9 +165,9 @@ qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
 
 ## 설계 원칙
 
-1. **`#![no_std]` + `alloc`만 사용** — std 없음, tokio 없음, OS 시스템 콜 없음. 와이어 계층은
-   `alloc`을 통해 프레임 버퍼를 할당하므로, 고정된 수치가 아니라 대상 보드에서의 힙 예산을
-   산정해야 합니다.
+1. **`#![no_std]` + `alloc`만 사용** — std 없음, tokio 없음, OS 시스템 콜 없음. 와이어
+   계층은 `alloc`을 통해 프레임 버퍼를 할당하므로, 고정된 수치가 아니라 대상 보드에서의
+   힙 예산을 산정해야 합니다.
 2. **Serde를 전면 사용** — 매니페스트 타입은 `Serialize`/`Deserialize`를 derive하고,
    와이어 페이로드는 컴팩트한 no_std 바이너리 포맷인
    [`postcard`](https://docs.rs/postcard)를 사용합니다.

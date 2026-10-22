@@ -30,8 +30,8 @@
 Hare は、**embassy ベースのセンサーノード**（ベアメタルの MCU）と**ゲートウェイブローカー**
 （現在は Linux 上で動作する [`evernight`](https://github.com/celestia-island/evernight)）
 との間にある共有契約レイヤーです。双方が同じハードウェアマニフェストをデシリアライズし、
-同じワイヤフレーミングで通信するため、センサーファームウェアとゲートウェイサービスは
-それぞれ独立に開発しても、そのまま組み合わせて動作させられます。
+同じワイヤフレーミングで通信するため、センサーファームウェアとゲートウェイサービスを
+それぞれ独立に開発しても、両者はそのまま噛み合って動作します。
 
 `#![no_std]` + `alloc` で動作します。std も tokio も OS コールもなく、独自の非同期
 ランタイムも持ちません。トランスポートは embassy ノードが提供し、プロトコルは hare が
@@ -45,9 +45,12 @@ Hare は、**embassy ベースのセンサーノード**（ベアメタルの MC
 - **ワイヤプロトコル**（`hare::wire`）— センサーノードとゲートウェイ間の
   UART/USB-CDC/SPI 向けのコンパクトなバイナリフレーミングプロトコル：`0xCE` マジック、
   `u16` 長、`u8` メッセージ種別、`postcard` ペイロード、CRC16-Modbus トレーラ。
-- **プロトコル種別識別子**（`hare::codec`）— Modbus、MC プロトコル、EtherNet/IP-CIP、
-  S7comm、CAN 用の `ProtocolKind` と不透明な `ProtocolFrame` コンテナ。エンコード／
-  デコードのロジック自体は hare ではなく evernight に属します。
+- **プロトコル種別識別子**（`hare::codec`）— `ProtocolKind` と、ベンダー固有のフレームを
+  hare が解析することなくワイヤ層経由で伝送する不透明な `ProtocolFrame` コンテナ。
+- **プロトコルハブ**（`hare::protocol`）— ファミリー自身が持つプロトコル資産：Modbus の
+  CRC16 とレジスタ／コイル抽出、三菱 MC Protocol 3E の要求／応答フレーミング、そして
+  DB → SCL レポートを備えた S7comm のエリア／パラメータモデル。完全なサードパーティ製
+  クライアントスタックを必要とするプロトコルは、ゲートウェイサービス側に留まります。
 - **HAL トレイト**（`hare::hal`）— embassy ノードが自前のハードウェアに対して実装する
   `Transport` および `SensorDevice` トレイト。
 - **ANSI/VT パーサ**（`hare::ansi`）— 意味的イベントを出力するステートマシン方式の
@@ -75,6 +78,8 @@ no_std 向けのフルセット（`wire`、`manifest`、`codec`、`hal`、`ansi`
 | `hal` | ✅ | `Transport` / `SensorDevice` トレイト — embassy で実装可能 |
 | `ansi` | ✅ | ANSI/VT エスケープシーケンスパーサ（ステートマシン、no_std） |
 | `std` | ❌ | ホスト向けビルドで、オプションの `serde` / `postcard` 依存へ `std` を転送 |
+
+`hare::protocol` は常にコンパイルされます — 追加の依存を一切持ち込みません。
 
 マニフェストは素の serde データです。hare は TOML や JSON のアダプタを**一切**同梱して
 いません。任意の serde フォーマットでロードしてください（ホストデモでは開発用依存の
@@ -220,7 +225,7 @@ CI ゲートは組織のセルフホストランナー上で実行されます�
   [Español](../es/README.md) · [Русский](../ru/README.md) ·
   [العربية](../ar/README.md)
 
-各 `docs/<language>/README.md` は翻訳です。翻訳と英語版の内容が食い違う場合は、英語版
+各 `docs/<language>/README.md` は翻訳です。翻訳と英語版の内容が食い違う場合は、英語版の
 README が正となります。
 
 ## ライセンス

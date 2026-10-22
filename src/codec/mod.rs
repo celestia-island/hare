@@ -1,15 +1,14 @@
 //! Protocol type identifiers and opaque frame containers.
 //!
-//! This module does **not** contain protocol encode/decode logic. All
-//! wire-level framing (Modbus RTU/TCP, MC Protocol, EtherNet/IP-CIP, CAN,
-//! S7comm, etc.) is the sole responsibility of **evernight**, the gateway
-//! broker. hare only provides:
+//! This module carries the **type vocabulary only**:
 //!
 //! - [`ProtocolKind`] — identifies which industrial protocol a station uses.
 //! - [`ProtocolFrame`] — an opaque tagged byte buffer for passing raw
 //!   protocol data through the wire layer without hare needing to understand it.
 //!
-//! This keeps hare small and lets evernight evolve its codecs independently.
+//! The family's own codecs (Modbus, Mitsubishi MC Protocol, S7comm) live in
+//! [`crate::protocol`]; protocols that need a full third-party client stack
+//! (EtherNet/IP-CIP, OPC UA, …) stay in **evernight**, the gateway broker.
 
 use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
@@ -17,7 +16,8 @@ use serde::{Deserialize, Serialize};
 /// Identifies an industrial protocol family.
 ///
 /// Used in manifest `Connection` entries and wire `DiscoverResponse` to
-/// declare what protocol a station speaks. hare does not implement any of
+/// declare what protocol a station speaks. The codecs for the family-owned
+/// protocols live in [`crate::protocol`].
 /// these — evernight owns the full codec stack.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum ProtocolKind {

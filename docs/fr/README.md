@@ -41,13 +41,18 @@ asynchrone propre — le nœud embassy fournit le transport, hare fournit le pro
 
 - **Schéma de manifeste** (`hare::manifest`) — descriptions matérielles : cartes de
   registres, règles d'alarme, configurations de station et transformations d'échelle. Le
-  même schéma que les deux côtés désérialisent.
+  même schéma que désérialisent les deux côtés.
 - **Protocole de liaison** (`hare::wire`) — un protocole de tramage binaire compact pour
   l'UART/USB-CDC/SPI entre les nœuds capteurs et la passerelle : magie `0xCE`, longueur
   `u16`, type de message `u8`, charge utile `postcard`, suffixe CRC16-Modbus.
 - **Identifiants de type de protocole** (`hare::codec`) — `ProtocolKind` et un conteneur
-  opaque `ProtocolFrame` pour Modbus, MC Protocol, EtherNet/IP-CIP, S7comm et CAN. La
-  logique d'encodage/décodage elle-même appartient à evernight, pas à hare.
+  opaque `ProtocolFrame` qui transporte une trame constructeur à travers la couche de
+  liaison sans que hare ne l'analyse.
+- **Hub de protocoles** (`hare::protocol`) — les briques protocolaires propres à la
+  famille : CRC16 Modbus et extraction de registres/bobines, tramage requête/réponse du
+  MC Protocol 3E de Mitsubishi, et le modèle zone/paramètre de S7comm avec rapports
+  DB → SCL. Les protocoles qui exigent une pile cliente tierce complète restent dans le
+  service de passerelle.
 - **Traits HAL** (`hare::hal`) — les traits `Transport` et `SensorDevice` que les nœuds
   embassy implémentent pour leur propre matériel.
 - **Analyseur ANSI/VT** (`hare::ansi`) — un analyseur de séquences d'échappement à machine
@@ -75,6 +80,8 @@ et un firmware n'a généralement besoin que des modules qu'il lie.
 | `hal` | ✅ | Traits `Transport` / `SensorDevice` — implémentables côté embassy |
 | `ansi` | ✅ | Analyseur de séquences d'échappement ANSI/VT (machine à états, no_std) |
 | `std` | ❌ | Transmet `std` aux dépendances optionnelles `serde` / `postcard` pour les builds côté hôte |
+
+`hare::protocol` est toujours compilé — il n'ajoute aucune dépendance.
 
 Le manifeste est de simples données serde. hare ne fournit **aucun** adaptateur TOML ou
 JSON : chargez-le avec le format serde de votre choix (la démo hôte utilise `serde_json`,
@@ -139,15 +146,15 @@ loop {
 }
 ```
 
-Un parcours complet limité à l'hôte (découverte, lecture de registre, télémétrie) se trouve
+Un parcours complet limité à l'hôte (découverte, lecture de registre, télémétrie) figure
 dans [`examples/host_demo.rs`](../../examples/host_demo.rs).
 
 ### Bout en bout sur un MCU émulé
 
 Le membre de workspace [`qemu-mps2/`](../../qemu-mps2/) est une démonstration de firmware
 Cortex-M4 qui s'exécute sous QEMU et remonte la télémétrie de température par UART ;
-`qemu-mps2/examples/host_gateway.rs` décode ces trames sur l'hôte. Il sert aussi de banc
-d'essai pour le protocole de liaison :
+`qemu-mps2/examples/host_gateway.rs` décode ces trames sur l'hôte. Il sert également de
+banc d'essai pour le protocole de liaison :
 
 ```bash
 # Firmware (thumbv7em, 4 MB of flash and RAM in the MPS2-AN386 memory map)
@@ -188,13 +195,13 @@ Les deux sont des artefacts indépendants qui partagent un contrat plutôt que d
 
 | | Noyau KEI (`celestia-island/kei`) | Hare (cette crate) |
 |---|---|---|
-| Cible | **passerelles** ARM64 / RISC-V, ABI d'appels système Linux, MMU requise | **MCU** bare-metal, pas de MMU |
+| Cible | **passerelles** ARM64 / RISC-V, ABI d'appels système Linux, MMU requise | **MCU** bare-metal, sans MMU |
 | Chaîne d'outils | nightly, famille `aarch64-unknown-none` | stable, `thumbv7em-none-eabi` / `riscv32imc-unknown-none-elf` |
 | Rôle | candidat à long terme pour remplacer Linux sur la passerelle | le contrat côté MCU |
 
 Ce dépôt est autonome : Rust stable, son propre `rust-toolchain.toml`, et un workspace dont
 l'unique membre (`qemu-mps2/`) vit dans ce répertoire. Le cloner suffit à obtenir un
-workspace fonctionnel — aucun checkout du noyau ni override `rustup` n'est nécessaire.
+workspace fonctionnel — aucun checkout du noyau et aucun override `rustup` nécessaires.
 
 ## Cibles et CI
 

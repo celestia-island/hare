@@ -27,28 +27,30 @@
 
 </div>
 
-Hare 是**以 embassy 為基礎的感測節點**（裸機 MCU）與**閘道 broker** 之間的共用契約層 ——
+Hare 是**以 embassy 為基礎的感測器節點**（裸機 MCU）與**閘道 broker** 之間的共用契約層 ——
 今日的閘道端是執行於 Linux 的 [`evernight`](https://github.com/celestia-island/evernight)。
-兩端會反序列化同一份硬體清單、使用同一套線路訊框格式，因此感測器韌體與閘道服務可以各自
+兩端會反序列化同一份硬體清單、並使用同一套線路訊框格式，因此感測器韌體與閘道服務可以各自
 獨立建置，最終仍能在中間會合。
 
-它只使用 `#![no_std]` + `alloc`：沒有 std、沒有 tokio、不做任何 OS 呼叫，本身也不帶非同步
-執行期 —— 傳輸由 embassy 節點提供，協定由 hare 提供。
+它只使用 `#![no_std]` + `alloc`：沒有 std、沒有 tokio、不做任何 OS 呼叫，本身也不帶自己的
+非同步執行期 —— 傳輸由 embassy 節點提供，協定由 hare 提供。
 
 ## 功能特色
 
 - **清單結構描述**（`hare::manifest`）—— 硬體描述：暫存器映射、告警規則、站點設定與刻度
   轉換。兩端反序列化的是同一份結構描述。
-- **線路協定**（`hare::wire`）—— 感測節點與閘道之間 UART/USB-CDC/SPI 使用的精簡二進位訊框
-  協定：`0xCE` 魔術數字、`u16` 長度、`u8` 訊息型別、`postcard` 承載資料、CRC16-Modbus 結尾
-  檢查碼。
-- **協定型別識別碼**（`hare::codec`）—— `ProtocolKind`，以及供 Modbus、MC Protocol、
-  EtherNet/IP-CIP、S7comm 與 CAN 使用的不透明 `ProtocolFrame` 容器。編解碼邏輯本身屬於
-  evernight，不屬於 hare。
-- **HAL trait**（`hare::hal`）—— `Transport` 與 `SensorDevice` 兩個 trait，由 embassy 節點針對
-  自身硬體實作。
-- **ANSI/VT 解析器**（`hare::ansi`）—— 以狀態機實作的跳脫序列解析器，會發出語意事件，適用於
-  需要理解位元組串流、但不想自己持有螢幕模型的終端機與協定紀錄器。
+- **線路協定**（`hare::wire`）—— 感測器節點與閘道之間 UART/USB-CDC/SPI 使用的精簡二進位
+  訊框協定：`0xCE` 魔術數字、`u16` 長度、`u8` 訊息型別、`postcard` 承載資料、
+  CRC16-Modbus 結尾檢查碼。
+- **協定型別識別碼**（`hare::codec`）—— `ProtocolKind`，以及一個不透明的 `ProtocolFrame`
+  容器；它讓廠商訊框穿越線路層傳遞，而無須由 hare 解析。
+- **協定中樞**（`hare::protocol`）—— 家族自有的協定資產：Modbus CRC16 與暫存器/線圈擷取、
+  三菱 MC Protocol 3E 的請求/回應訊框，以及 S7comm 的區域/參數模型與 DB → SCL 報表。
+  需要完整第三方用戶端堆疊的協定，則留在閘道服務中。
+- **HAL trait**（`hare::hal`）—— `Transport` 與 `SensorDevice` 兩個 trait，由 embassy 節點
+  針對自身硬體實作。
+- **ANSI/VT 解析器**（`hare::ansi`）—— 以狀態機實作的跳脫序列解析器，會發出語意事件，
+  適用於需要理解位元組串流、但不想自己持有螢幕模型的終端機與協定紀錄器。
 
 ## 安裝
 
@@ -71,12 +73,14 @@ hare = { version = "0.1", default-features = false, features = ["wire", "manifes
 | `ansi` | ✅ | ANSI/VT 跳脫序列解析器（狀態機、no_std） |
 | `std` | ❌ | 在主機端建置時，將 `std` 轉發給選用的 `serde` / `postcard` 相依套件 |
 
+`hare::protocol` 一律會被編譯 —— 它不增加任何相依套件。
+
 清單本身只是普通的 serde 資料。hare **不**隨附任何 TOML 或 JSON 轉接器：請用你偏好的 serde
 格式載入它（主機端示範使用 `serde_json`，屬於 dev-dependency）。
 
 ## 快速開始
 
-### 感測節點（embassy 韌體）
+### 感測器節點（embassy 韌體）
 
 ```rust
 use hare::manifest::SensorUnit;

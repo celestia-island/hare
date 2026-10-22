@@ -44,8 +44,12 @@ own — the embassy node provides the transport, hare provides the protocol.
   UART/USB-CDC/SPI between sensor nodes and the gateway: `0xCE` magic, `u16` length,
   `u8` message type, `postcard` payload, CRC16-Modbus trailer.
 - **Protocol type identifiers** (`hare::codec`) — `ProtocolKind` and an opaque
-  `ProtocolFrame` container for Modbus, MC Protocol, EtherNet/IP-CIP, S7comm, and CAN.
-  The encode/decode logic itself belongs to evernight, not to hare.
+  `ProtocolFrame` container that carries a vendor frame through the wire layer
+  without hare parsing it.
+- **Protocol hub** (`hare::protocol`) — the family's own protocol assets: Modbus
+  CRC16 and register/coil extraction, Mitsubishi MC Protocol 3E request/response
+  framing, and the S7comm area/parameter model with DB → SCL reports. Protocols
+  that need a full third-party client stack stay in the gateway service.
 - **HAL traits** (`hare::hal`) — `Transport` and `SensorDevice` traits that embassy nodes
   implement against their own hardware.
 - **ANSI/VT parser** (`hare::ansi`) — a state-machine escape-sequence parser that emits
@@ -73,6 +77,8 @@ only needs the modules it links.
 | `hal` | ✅ | `Transport` / `SensorDevice` traits — embassy-implementable |
 | `ansi` | ✅ | ANSI/VT escape-sequence parser (state machine, no_std) |
 | `std` | ❌ | Forwards `std` to the optional `serde` / `postcard` dependencies for host builds |
+
+`hare::protocol` is always compiled — it adds no dependencies.
 
 The manifest is plain serde data. hare ships **no** TOML or JSON adapters: load it with
 the serde format of your choice (the host demo uses `serde_json`, a dev-dependency).
