@@ -37,13 +37,13 @@ use super::{
 #[derive(Clone, Debug)]
 pub enum Request {
     /// Gateway wants a single register's value. Reply via
-    /// [`Node::telemetry`].
+    /// [`Node::send_telemetry`].
     ReadRegister(ReadRegister),
     /// Gateway wants to write a value.
     WriteRegister(WriteRegister),
     /// Gateway wants all current values of a station.
     ReadStation(ReadStation),
-    /// Discovery probe — reply via [`Node::discover_response`].
+    /// Discovery probe — reply via [`Node::send_discover_response`].
     Discover(Discover),
 }
 
@@ -152,9 +152,8 @@ impl<T: Transport> Node<T> {
     /// dispatches it automatically and returns the next *read* request (or
     /// discovery). Callers typically only handle `ReadRegister` / `Discover`.
     ///
-    /// Pass `&mut impl SensorDevice` to enable automatic write dispatch;
-    /// pass `&mut None` (via the `poll_readonly` method) if you don't have
-    /// a device yet.
+    /// Pass `&mut impl SensorDevice` to enable automatic write dispatch, or
+    /// call [`Node::poll_readonly`] if you don't have a device yet.
     pub fn poll(&mut self, device: &mut dyn SensorDevice) -> Result<Request, NodeError> {
         loop {
             let frame = self.recv_frame()?;

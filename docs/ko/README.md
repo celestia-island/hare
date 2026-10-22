@@ -62,9 +62,9 @@ Hare는 **embassy 기반 센서 노드**(베어메탈 MCU)와 **게이트웨이 
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-`default-features = false`는 embassy 펌웨어에서 옳은 선택입니다. 기본값은 no_std 전체
-집합(`wire`, `manifest`, `codec`, `hal`, `ansi`)이며, 펌웨어는 보통 링크하는 모듈만
-필요로 하기 때문입니다.
+`default-features = false`는 embassy 펌웨어에서 옳은 선택이지만, 기능들은 완전히 독립적이지
+않습니다. `wire`는 `hal`을 끌어오고, HAL 트레이트는 manifest와 wire 타입을 전제로 작성되어
+있습니다. 펌웨어는 보통 단일 모듈이 아니라 전체 집합(또는 `wire,manifest`)을 활성화합니다.
 
 ### 피처 플래그
 
@@ -77,11 +77,10 @@ hare = { version = "0.1", default-features = false, features = ["wire", "manifes
 | `ansi` | ✅ | ANSI/VT 이스케이프 시퀀스 파서 (상태 머신, no_std) |
 | `std` | ❌ | 호스트 빌드를 위해 선택적 `serde` / `postcard` 의존성으로 `std`를 전달 |
 
-`hare::protocol`은 항상 컴파일됩니다 — 의존성을 추가하지 않습니다.
+`hare::protocol`은 항상 컴파일되며 의존성을 추가하지 않습니다.
 
-매니페스트는 평범한 serde 데이터입니다. hare는 TOML이나 JSON 어댑터를 **전혀 제공하지
-않습니다**: 원하는 serde 포맷으로 로드하십시오(호스트 데모는 dev-dependency인
-`serde_json`을 사용합니다).
+매니페스트는 순수한 serde 데이터입니다. hare는 TOML/JSON 어댑터를 **제공하지 않습니다**.
+원하는 serde 포맷으로 직접 읽으십시오.
 
 ## 빠른 시작
 

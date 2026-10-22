@@ -64,9 +64,10 @@ Hare は、**embassy ベースのセンサーノード**（ベアメタルの MC
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-embassy ファームウェアでは `default-features = false` を選ぶのが適切です。デフォルトは
-no_std 向けのフルセット（`wire`、`manifest`、`codec`、`hal`、`ansi`）であり、ファームウェアは
-通常、自身がリンクするモジュールだけを必要とします。
+embassy ファームウェアでは `default-features = false` を選ぶのが適切ですが、各フィーチャーは
+独立していません。`wire` は `hal` を引き込み、HAL トレイトは manifest と wire の型を前提に
+書かれています。ファームウェアは通常、単一モジュールではなくフルセット（または
+`wire,manifest`）を有効にします。
 
 ### フィーチャーフラグ
 
@@ -79,11 +80,10 @@ no_std 向けのフルセット（`wire`、`manifest`、`codec`、`hal`、`ansi`
 | `ansi` | ✅ | ANSI/VT エスケープシーケンスパーサ（ステートマシン、no_std） |
 | `std` | ❌ | ホスト向けビルドで、オプションの `serde` / `postcard` 依存へ `std` を転送 |
 
-`hare::protocol` は常にコンパイルされます — 追加の依存を一切持ち込みません。
+`hare::protocol` は常にコンパイル対象で、依存関係は増えません。
 
-マニフェストは素の serde データです。hare は TOML や JSON のアダプタを**一切**同梱して
-いません。任意の serde フォーマットでロードしてください（ホストデモでは開発用依存の
-`serde_json` を使用しています）。
+マニフェストは単なる serde データです。hare は TOML / JSON アダプタを**同梱しません**。
+任意の serde フォーマットで読み込んでください。
 
 ## クイックスタート
 

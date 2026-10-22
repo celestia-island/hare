@@ -63,9 +63,10 @@ own — the embassy node provides the transport, hare provides the protocol.
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-`default-features = false` is the right choice for an embassy firmware: the defaults are
-the full no_std set (`wire`, `manifest`, `codec`, `hal`, `ansi`), and a firmware usually
-only needs the modules it links.
+`default-features = false` is the right choice for an embassy firmware, but the features
+are not fully independent: `wire` pulls in `hal`, and the HAL traits are written against
+the manifest and wire types. A firmware normally enables the full set (or `wire,manifest`)
+rather than a lone module.
 
 ### Feature flags
 
@@ -81,7 +82,7 @@ only needs the modules it links.
 `hare::protocol` is always compiled — it adds no dependencies.
 
 The manifest is plain serde data. hare ships **no** TOML or JSON adapters: load it with
-the serde format of your choice (the host demo uses `serde_json`, a dev-dependency).
+the serde format of your choice.
 
 ## Quick start
 

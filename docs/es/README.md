@@ -67,9 +67,10 @@ propio — el nodo embassy proporciona el transporte y hare proporciona el proto
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-`default-features = false` es la opción correcta para un firmware embassy: los valores por
-defecto son el conjunto no_std completo (`wire`, `manifest`, `codec`, `hal`, `ansi`), y un
-firmware normalmente solo necesita los módulos que enlaza.
+`default-features = false` es la opción correcta para un firmware embassy, pero las
+características no son del todo independientes: `wire` arrastra `hal`, y los traits HAL
+están escritos sobre los tipos de manifest y wire. Un firmware suele activar el conjunto
+completo (o `wire,manifest`) en lugar de un módulo suelto.
 
 ### Banderas de características
 
@@ -82,11 +83,10 @@ firmware normalmente solo necesita los módulos que enlaza.
 | `ansi` | ✅ | Analizador de secuencias de escape ANSI/VT (máquina de estados, no_std) |
 | `std` | ❌ | Reenvía `std` a las dependencias opcionales `serde` / `postcard` para compilaciones en el host |
 
-`hare::protocol` siempre se compila — no añade dependencias.
+`hare::protocol` se compila siempre: no añade dependencias.
 
-El manifiesto son datos serde sin más. hare **no** incluye adaptadores TOML ni JSON: cárgalo
-con el formato serde que prefieras (la demo del host usa `serde_json`, una dependencia de
-desarrollo).
+El manifiesto es simple dato serde. hare **no** incluye adaptadores TOML ni JSON: cárguelo
+con el formato serde que prefiera.
 
 ## Inicio rápido
 

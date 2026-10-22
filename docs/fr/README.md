@@ -66,9 +66,10 @@ asynchrone propre — le nœud embassy fournit le transport, hare fournit le pro
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-`default-features = false` est le bon choix pour un firmware embassy : les valeurs par
-défaut constituent l'ensemble no_std complet (`wire`, `manifest`, `codec`, `hal`, `ansi`),
-et un firmware n'a généralement besoin que des modules qu'il lie.
+`default-features = false` est le bon choix pour un firmware embassy, mais les
+fonctionnalités ne sont pas pleinement indépendantes : `wire` tire `hal`, et les traits HAL
+s'appuient sur les types manifest et wire. Un firmware active normalement l'ensemble complet
+(ou `wire,manifest`) plutôt qu'un module isolé.
 
 ### Drapeaux de fonctionnalités
 
@@ -83,9 +84,8 @@ et un firmware n'a généralement besoin que des modules qu'il lie.
 
 `hare::protocol` est toujours compilé — il n'ajoute aucune dépendance.
 
-Le manifeste est de simples données serde. hare ne fournit **aucun** adaptateur TOML ou
-JSON : chargez-le avec le format serde de votre choix (la démo hôte utilise `serde_json`,
-une dev-dependency).
+Le manifeste est de simples données serde. hare **ne fournit pas** d'adaptateurs TOML ou
+JSON : chargez-le avec le format serde de votre choix.
 
 ## Démarrage rapide
 

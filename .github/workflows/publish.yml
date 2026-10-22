@@ -4,10 +4,10 @@ name: Publish
 # `release` environment, so only jobs that declare that environment can read it.
 # Trigger it by pushing a `v*` tag (the tag must match Cargo.toml's version).
 #
-# This repository is public, so GitHub-hosted minutes are free; the release path
-# deliberately runs on `ubuntu-latest` instead of queueing behind the
-# self-hosted farm (see _ledger/known-env-issues.md: queueing is not a failure,
-# but a release should not wait for it either).
+# This repository is public, so GitHub-hosted minutes are free. The release
+# path therefore runs on `ubuntu-latest` instead of the organization's
+# self-hosted CI farm: a release should not sit behind an unrelated build
+# queue.
 on:
   push:
     tags: [v*]

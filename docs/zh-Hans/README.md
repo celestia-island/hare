@@ -59,8 +59,9 @@ Hare 是 **基于 embassy 的传感器节点**（裸机 MCU）与 **网关 broke
 hare = { version = "0.1", default-features = false, features = ["wire", "manifest"] }
 ```
 
-对 embassy 固件而言，`default-features = false` 是正确选择：默认特性是完整的 no_std 集合
-（`wire`、`manifest`、`codec`、`hal`、`ansi`），而固件通常只需要它实际链接的那些模块。
+对 embassy 固件而言，`default-features = false` 是正确选择，但这些特性并非彼此独立：
+`wire` 会引入 `hal`，而 HAL trait 又是基于 manifest 与 wire 类型编写的。固件通常启用整套特性
+（或 `wire,manifest`），而不是只挑一个模块。
 
 ### 特性开关
 
@@ -73,10 +74,9 @@ hare = { version = "0.1", default-features = false, features = ["wire", "manifes
 | `ansi` | ✅ | ANSI/VT 转义序列解析器（状态机，no_std） |
 | `std` | ❌ | 在主机侧构建中把 `std` 转发给可选的 `serde` / `postcard` 依赖 |
 
-`hare::protocol` 始终会被编译——它不引入任何依赖。
+`hare::protocol` 始终参与编译——它不引入任何依赖。
 
-清单就是普通的 serde 数据。hare **不**自带 TOML 或 JSON 适配器：请用你选定的 serde 格式
-加载它（主机演示使用的是 dev-dependency `serde_json`）。
+硬件清单就是普通的 serde 数据。hare **不**提供 TOML 或 JSON 适配器：请用你选定的 serde 格式自行加载。
 
 ## 快速开始
 
