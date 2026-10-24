@@ -7,6 +7,12 @@
 # Keep the gate set honest: the clippy gate MUST keep `--all-targets` — without
 # it, tests/examples/benches are silently skipped (measured 2026-09-16: a broken
 # example survived behind that gap).
+#
+# Every job runs on the org self-hosted runner. This repository is PUBLIC, so
+# a fork pull request would otherwise execute untrusted code inside the org
+# network and spend shared runner capacity; each job therefore carries the
+# org's fork guard (`if:` = not a pull_request, or same-repo head). Do not
+# drop the guard when editing a job.
 name: CI
 on:
   workflow_dispatch:
@@ -21,6 +27,7 @@ env:
 jobs:
   # ── Host tests (std target) ──────────────────────────────────────────────-
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 120
     steps:
@@ -30,6 +37,7 @@ jobs:
 
   # ── no_std check on ARM Cortex-M (the primary embassy target) ────────────-
   no_std-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 90
     steps:
@@ -42,6 +50,7 @@ jobs:
 
   # ── no_std check on RISC-V (secondary target) ────────────────────────────-
   no_std-riscv:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 90
     steps:
@@ -53,6 +62,7 @@ jobs:
 
   # ── Formatting ────────────────────────────────────────────────────────────-
   fmt:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 60
     steps:
@@ -64,6 +74,7 @@ jobs:
 
   # ── Benchmarks compile (no run) ───────────────────────────────────────────-
   bench-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 240
     steps:
@@ -73,6 +84,7 @@ jobs:
 
   # ── Clippy (on host, all features) ────────────────────────────────────────-
   clippy:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, local]
     timeout-minutes: 180
     steps:
