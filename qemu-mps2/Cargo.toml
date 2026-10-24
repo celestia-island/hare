@@ -1,7 +1,14 @@
 [package]
 edition = "2021"
 name = "kei-qemu-mps2"
-version = "0.1.0"
+# Kept equal to the root crate's version: this crate is not published, but the
+# org-wide `celestia-devtools verify-versions` gate fails any member that drifts
+# from the workspace baseline. A hardcoded value (rather than
+# `version.workspace = true`) keeps `[workspace.package]` out of the manifest:
+# `publish.yml` reads the released version straight from this repository's root
+# `Cargo.toml`, and the gate treats the root manifest as the baseline source, so a
+# second copy of the number there would not be cross-checked.
+version = "0.1.1"
 publish = false
 # Member of the library's own workspace, rooted at the parent directory.
 # This crate lives INSIDE the library workspace so that cloning the repo
