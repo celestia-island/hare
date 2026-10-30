@@ -1,24 +1,13 @@
 name: Verify Versions
 
-# The reusable callee owns the runner label, the timeout and the fork guard;
-# this file only decides when it runs, so the wiring cannot drift per repo.
 on:
-  workflow_dispatch:
-  push:
-    branches: [master]
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
   merge_group:
     types: [checks_requested]
 
-# A called workflow cannot grant itself a permission the caller withholds, and
-# the 2026-10-02 org default-token tightening turned that mismatch into
-# `startup_failure` with zero jobs (the required check then never reports).
-# Grant exactly what the callee declares and nothing more.
-permissions:
-  contents: read
-
 jobs:
   verify-versions:
-    name: Verify version consistency
-    uses: celestia-island/celestia-devtools/.github/workflows/verify-versions.yml@master
+    uses: celestia-island/celestia-devtools/.github/workflows/verify-versions.yml@v2026.10
+    with:
+      devtools-ref: v2026.10
