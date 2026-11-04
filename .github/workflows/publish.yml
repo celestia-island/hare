@@ -64,12 +64,23 @@ jobs:
       - run: cargo package -p hare --list
       - run: cargo package -p hare --no-verify
 
+  # ── Semver gate: a tag whose API diff requires a bigger bump than the
+  #    manifest must never reach crates.io (versioning-audit B2, 2026-11-04).
+  #    Pinned devtools ref per H14; single-crate root layout — the reusable
+  #    gate walks the root Cargo.toml directly.
+  semver-checks:
+    name: Semver API diff (published crates)
+    needs: verify-version
+    uses: celestia-island/celestia-devtools/.github/workflows/semver-checks.yml@f39afe4c782e4bcf66d2aca291274624afa615dd
+    with:
+      runs-on-json: '["ubuntu-latest"]'
+
   # ── Real publish, gated on the `release` environment token ──────────────-
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    needs: [verify-version, package-check]
+    needs: [verify-version, package-check, semver-checks]
     environment: release
     steps:
       - uses: actions/checkout@v7
