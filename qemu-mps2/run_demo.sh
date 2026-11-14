@@ -45,7 +45,7 @@ echo ""
 qemu-system-arm \
     -M mps2-an386 \
     -cpu cortex-m4 \
-    -m 4M \
+    -m 16M \
     -nographic \
     -semihosting \
     -serial stdio \
