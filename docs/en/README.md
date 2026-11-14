@@ -157,7 +157,7 @@ cargo build --release -p kei-qemu-mps2 --target thumbv7em-none-eabi
 # Host-side decoder
 cargo build -p kei-qemu-mps2 --example host_gateway --target x86_64-unknown-linux-gnu
 
-qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 4M \
+qemu-system-arm -M mps2-an386 -cpu cortex-m4 -m 16M \
     -display none -serial stdio \
     -kernel target/thumbv7em-none-eabi/release/kei-qemu-mps2 \
     | target/x86_64-unknown-linux-gnu/debug/examples/host_gateway
