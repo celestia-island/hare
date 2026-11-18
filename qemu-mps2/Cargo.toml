@@ -32,7 +32,6 @@ linked_list_allocator = "0.10"
 [target.'cfg(target_os = "none")'.dependencies]
 cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7"
-panic-halt = "0.2"
 critical-section = "1"
 
 [profile.release]
