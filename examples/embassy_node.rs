@@ -14,10 +14,13 @@
 //!
 //! ## Wiring
 //!
-//! ```text
-//! STM32 PA9 (TX) ──┬── RS-485 transceiver ──┬── gateway / evernight
-//! STM32 PA10 (RX) ─┘                        │
-//! STM32 PA0 (ADC) ─── NTC thermistor ───────┘
+//! ```mermaid
+//! graph LR
+//!     PA9["STM32 PA9 (TX)"] --- T["RS-485 transceiver"]
+//!     PA10["STM32 PA10 (RX)"] --- T
+//!     T --- GW["gateway / evernight"]
+//!     PA0["STM32 PA0 (ADC)"] --- NTC["NTC thermistor"]
+//!     NTC --- T
 //! ```
 
 // These imports are placeholders — replace with your board's HAL:
