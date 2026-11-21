@@ -38,21 +38,9 @@ Or use the helper script:
 
 ## Architecture
 
-```
-QEMU (mps2-an386, Cortex-M4)
-┌───────────────────────────────┐
-│ kei-qemu-mps2 firmware        │
-│  hare::wire::Node             │
-│    ↓ send_telemetry()         │
-│  CMSDK APB UART0 (0x40004000) │
-└───────────┬───────────────────┘
-            │ -serial stdio
-            ↓
-┌───────────────────────────────┐
-│ host_gateway (std)            │
-│  hare::wire::Gateway          │
-│    recv() → Telemetry/Status  │
-└───────────────────────────────┘
+```mermaid
+graph TD
+    A["QEMU (mps2-an386, Cortex-M4)<br/>kei-qemu-mps2 firmware<br/>hare::wire::Node<br/>↓ send_telemetry()<br/>CMSDK APB UART0 (0x40004000)"] -->|"-serial stdio"| B["host_gateway (std)<br/>hare::wire::Gateway<br/>recv() → Telemetry/Status"]
 ```
 
 ## Files
