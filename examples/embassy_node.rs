@@ -20,7 +20,7 @@
 //!     PA10["STM32 PA10 (RX)"] --- T
 //!     T --- GW["gateway / evernight"]
 //!     PA0["STM32 PA0 (ADC)"] --- NTC["NTC thermistor"]
-//!     NTC --- GW
+//!     NTC --- T
 //! ```
 
 // These imports are placeholders — replace with your board's HAL:
