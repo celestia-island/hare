@@ -1,4 +1,4 @@
-<p align="center"><img src="https://raw.githubusercontent.com/celestia-island/hare/master/docs/logo.webp" alt="hare" width="240" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/celestia-island/celestia-island.github.io/main/res/logos/hare.webp" alt="hare" width="240" /></p>
 
 <h1 align="center">Hare</h1>
 
